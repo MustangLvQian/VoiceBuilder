@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VoiceBuilder · 音频生产与校验</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        --ink: #232135;
+        --muted: #6b6880;
+        --line: #e6e3f0;
+        --bg: #f6f5fb;
+        --card: #fff;
+        --accent: #5b4bd6;
+        --ok: #1c7c4a;
+        --warn: #a05a00;
+        --bad: #b3261e;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); }
+      header { padding: 22px 24px 6px; }
+      h1 { margin: 0; font-size: 22px; }
+      .sub { color: var(--muted); margin-top: 4px; font-size: 14px; }
+      main { max-width: 1040px; margin: 0 auto; padding: 16px 24px 60px; display: grid; gap: 18px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+      .card h2 { margin: 0 0 12px; font-size: 16px; }
+      label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+      input[type="text"], input[type="number"] {
+        width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+        font: inherit; background: #fbfaff;
+      }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+      .row > div { flex: 1 1 220px; }
+      button {
+        font: inherit; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line);
+        background: #fff; color: var(--ink); cursor: pointer;
+      }
+      button:hover { border-color: #cfc9ea; }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button.full { background: #1c7c4a; border-color: #1c7c4a; color: #fff; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .steps { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+      .step { border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px; background: #fdfcff; }
+      .step .t { font-weight: 600; }
+      .step .h { color: var(--muted); font-size: 12.5px; margin: 4px 0 10px; min-height: 32px; }
+      .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+      .stat { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; }
+      .stat .k { font-size: 12.5px; color: var(--muted); }
+      .stat .v { font-weight: 600; margin-top: 3px; word-break: break-all; }
+      .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; }
+      .pill.ok { background: #e3f5ea; color: var(--ok); }
+      .pill.warn { background: #fdf0dd; color: var(--warn); }
+      .pill.bad { background: #fbe4e2; color: var(--bad); }
+      pre#log {
+        margin: 0; padding: 14px; border-radius: 12px; background: #17141f; color: #e8e6f2;
+        font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; line-height: 1.5;
+        max-height: 380px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+      }
+      .clips { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+      .clip { display: grid; grid-template-columns: 1fr 300px; gap: 12px; align-items: center; padding: 10px 13px; border-top: 1px solid var(--line); }
+      .clip:first-child { border-top: 0; }
+      .clip .id { font-size: 12px; color: var(--muted); }
+      .clip .tx { margin: 3px 0 0; font-size: 14px; }
+      audio { width: 100%; }
+      .grp { padding: 8px 13px; background: #f1effa; font-size: 13px; font-weight: 600; color: #4a4568; }
+      .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+      a.dl { color: var(--accent); font-size: 13px; }
+      .hint { color: var(--muted); font-size: 13px; }
+      @media (max-width: 640px) { .clip { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>VoiceBuilder</h1>
+      <div class="sub">英闯星球音频生产与校验：生成清单 → 合成/收录 → 校验 → 打包交给 App</div>
+    </header>
+    <main>
+      <section class="card">
+        <h2>App 路径与设置</h2>
+        <div class="row">
+          <div style="flex:1 1 480px">
+            <label for="appRoot">App 根目录（读题库与 LUMI-VOICE-LINES.md，写回分包与 public/audio）</label>
+            <input id="appRoot" type="text" placeholder="D:\\LvQian\\YingChuangXingQiu">
+          </div>
+          <div>
+            <label for="ttsVoice">TTS 语音</label>
+            <input id="ttsVoice" type="text" value="Microsoft Zira Desktop">
+          </div>
+          <div style="flex:0 0 130px">
+            <label for="sampleRate">采样率</label>
+            <input id="sampleRate" type="number" value="11025">
+          </div>
+          <div style="flex:0 0 auto"><button class="primary" id="save">保存</button></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>当前状态</h2>
+        <div class="grid" id="status">载入中……</div>
+      </section>
+
+      <section class="card">
+        <h2>操作</h2>
+        <div class="steps" id="steps"></div>
+        <div style="margin-top:14px"><pre id="log">点上面的按钮开始。输出会实时显示在这里。</pre></div>
+      </section>
+
+      <section class="card">
+        <h2>试听</h2>
+        <div class="tools">
+          <button id="reload-clips">刷新试听列表</button>
+          <span class="hint" id="clip-count"></span>
+        </div>
+        <div class="clips" id="clips"><p class="hint" style="padding:12px">点「刷新试听列表」载入。</p></div>
+      </section>
+
+      <section class="card">
+        <h2>校验报告</h2>
+        <div class="tools" id="report-buttons"></div>
+        <pre id="report" style="background:#fbfaff;color:#232135;padding:14px;border-radius:12px;border:1px solid #e6e3f0;max-height:420px;overflow:auto;white-space:pre-wrap">点上面的报告名查看。</pre>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const log = $('log')
+      let running = false
+
+      async function getJson(url, options) {
+        const res = await fetch(url, options)
+        if (!res.ok) throw new Error(`${url} -> ${res.status}`)
+        return res.json()
+      }
+
+      async function loadConfig() {
+        const c = await getJson('/api/config')
+        $('appRoot').value = c.appRoot || ''
+        $('ttsVoice').value = c.ttsVoice || 'Microsoft Zira Desktop'
+        $('sampleRate').value = c.sampleRate || 11025
+      }
+
+      function pill(ok, okText, badText) {
+        return ok
+          ? `<span class="pill ok">${okText}</span>`
+          : `<span class="pill bad">${badText}</span>`
+      }
+
+      function stat(key, value) {
+        return `<div class="stat"><div class="k">${key}</div><div class="v">${value}</div></div>`
+      }
+
+      async function loadStatus() {
+        const s = await getJson('/api/status')
+        const appOk = s.appRootExists
+        const rows = [
+          stat('App 根目录', s.appRoot ? `${pill(appOk, '存在', '不存在')} <span class="hint">${s.appRoot}</span>` : '<span class="pill bad">未设置</span>'),
+          stat('LUMI-VOICE-LINES.md', pill(s.lumi.exists, '找到', '缺失')),
+          stat('题库 JSON', s.banks.count ? `${s.banks.count} 个` : '<span class="pill bad">0 个</span>'),
+          stat('工作清单', pill(s.worklists, '已生成', '未生成')),
+          stat('清单条目', String(s.manifestCount)),
+          stat('WAV 文件', s.audioCount ? `${s.audioCount} 个` : '<span class="pill warn">0</span>'),
+          stat('ASR 模型', pill(s.model.ready, '就绪', '未下载')),
+          stat('ASR 环境', pill(s.python.ok, '可用', '不可用') + ` <span class="hint">${s.python.detail}</span>`),
+        ]
+        $('status').innerHTML = rows.join('')
+
+        const rb = $('report-buttons')
+        rb.innerHTML = ''
+        for (const r of s.reports) {
+          const b = document.createElement('button')
+          b.textContent = (r.exists ? '查看 ' : '（未生成）') + r.name
+          b.disabled = !r.exists
+          b.onclick = () => showReport(r.name)
+          rb.append(b)
+        }
+      }
+
+      async function loadSteps() {
+        const steps = await getJson('/api/steps')
+        const box = $('steps')
+        box.innerHTML = ''
+        for (const s of steps) {
+          const el = document.createElement('div')
+          el.className = 'step'
+          el.innerHTML = `<div class="t">${s.label}</div><div class="h">${s.hint || ''}</div>`
+          const b = document.createElement('button')
+          b.className = s.full ? 'full' : ''
+          b.textContent = '运行'
+          b.onclick = () => runStep(s.id, b)
+          el.append(b)
+          box.append(el)
+        }
+      }
+
+      async function runStep(id, button) {
+        if (running) return
+        running = true
+        log.textContent = ''
+        button.disabled = true
+        try {
+          const res = await fetch(`/api/run/${id}`, { method: 'POST' })
+          const reader = res.body.getReader()
+          const dec = new TextDecoder()
+          for (;;) {
+            const { done, value } = await reader.read()
+            if (done) break
+            log.textContent += dec.decode(value, { stream: true })
+            log.scrollTop = log.scrollHeight
+          }
+        } catch (err) {
+          log.textContent += `\n[请求失败] ${err.message}\n`
+        } finally {
+          running = false
+          button.disabled = false
+          loadStatus().catch(() => {})
+        }
+      }
+
+      async function loadClips() {
+        const items = await getJson('/api/manifest')
+        const box = $('clips')
+        box.innerHTML = ''
+        $('clip-count').textContent = items.length ? `${items.length} 条` : '没有清单（先「生成工作清单」或用 TTS 合成）'
+        if (!items.length) {
+          box.innerHTML = '<p class="hint" style="padding:12px">清单为空。</p>'
+          return
+        }
+        let current = null
+        for (const it of items) {
+          const grp = it.group || it.source
+          if (grp !== current) {
+            current = grp
+            const g = document.createElement('div')
+            g.className = 'grp'
+            g.textContent = grp
+            box.append(g)
+          }
+          const row = document.createElement('div')
+          row.className = 'clip'
+          const copy = document.createElement('div')
+          copy.innerHTML = `<div class="id">${it.id}</div><p class="tx"></p>`
+          copy.querySelector('.tx').textContent = it.text || ''
+          const audio = document.createElement('audio')
+          audio.controls = true
+          audio.preload = 'none'
+          audio.src = `/audio/${encodeURIComponent(it.file)}`
+          row.append(copy, audio)
+          box.append(row)
+        }
+      }
+
+      async function showReport(name) {
+        const res = await fetch(`/api/report?name=${encodeURIComponent(name)}`)
+        $('report').textContent = res.ok ? await res.text() : '读取失败'
+      }
+
+      $('save').onclick = async () => {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            appRoot: $('appRoot').value.trim(),
+            ttsVoice: $('ttsVoice').value.trim(),
+            sampleRate: Number($('sampleRate').value) || 11025,
+          }),
+        })
+        log.textContent = '设置已保存。'
+        await loadStatus()
+      }
+      $('reload-clips').onclick = () => loadClips().catch((e) => { $('clips').textContent = e.message })
+
+      ;(async () => {
+        try { await loadConfig(); await loadSteps(); await loadStatus() } catch (e) { log.textContent = String(e) }
+      })()
+    </script>
+  </body>
+</html>

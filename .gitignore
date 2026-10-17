@@ -1,0 +1,14 @@
+# Machine-specific config (the App path). Copy from the example once.
+voicebuilder.config.json
+
+# work/ is a scratch area. Everything in it is produced from the App's question
+# banks or from the recordings themselves, so none of it is source.
+work/*
+!work/.gitkeep
+
+# The downloaded ASR model is large and regenerable.
+models/
+
+# Python bytecode from src/*.py
+__pycache__/
+*.pyc

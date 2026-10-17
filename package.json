@@ -1,0 +1,17 @@
+{
+  "name": "voicebuilder",
+  "private": true,
+  "version": "0.1.0",
+  "description": "英闯星球音频生产与校验工具：生成录音清单、TTS/真人收录、机械与 ASR 校验、打包交给 App",
+  "type": "module",
+  "scripts": {
+    "ui": "node src/server.mjs",
+    "worklists": "node src/build-listening-worklist.mjs && node src/build-recording-worklist.mjs",
+    "model": "powershell -ExecutionPolicy Bypass -File src/fetch-asr-model.ps1",
+    "tts": "powershell -ExecutionPolicy Bypass -File src/generate-audio.ps1",
+    "check": "node src/check-recordings.mjs",
+    "verify-asr": "python src/asr-verify.py",
+    "pack": "powershell -ExecutionPolicy Bypass -File src/pack-miniprogram.ps1",
+    "publish-pwa": "node src/publish-pwa.mjs"
+  }
+}

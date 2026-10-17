@@ -1,0 +1,9 @@
+# One machine is Windows; keep text files LF so the two never fight, the same
+# rule the App repository uses.
+* text=auto eol=lf
+
+# Binary assets stay binary.
+*.wav binary
+*.zip binary
+*.fst binary
+*.mdl binary
