@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>VoiceBuilder 录音</title>
+<style>
+  :root {
+    --ink: #241a15;
+    --ink-soft: #6b5a51;
+    --paper: #faf6f2;
+    --card: #ffffff;
+    --line: #e7ddd5;
+    --accent: #c2491c;
+    --accent-soft: #fdece4;
+    --good: #1f7a4d;
+    --good-soft: #e6f4ec;
+    --warn: #a56a00;
+    --warn-soft: #fdf3e0;
+    --bad: #b3261e;
+    --bad-soft: #fdeceb;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button { font: inherit; color: inherit; border: 1px solid var(--line); background: var(--card);
+    border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  .app {
+    display: flex; flex-direction: column; height: 100%;
+    padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 10px);
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .counter { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .track { height: 5px; border-radius: 99px; background: var(--line); overflow: hidden; margin-bottom: 12px; }
+  .track > span { display: block; height: 100%; width: 0; background: var(--good); transition: width .25s ease; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-soft); }
+  .chip { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft);
+    color: #8d3411; border: 1px solid #f6d9ca; }
+  .chip.plain { background: #f4efeb; color: var(--ink-soft); border-color: var(--line); }
+  .chip.done { background: var(--good-soft); color: var(--good); border-color: #cfe7d9; }
+
+  .line { font-size: 24px; line-height: 1.4; margin: 12px 0 4px; min-height: 3.4em; }
+  .file { font-size: 11.5px; color: var(--ink-soft); word-break: break-all; font-family: ui-monospace, monospace; }
+
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  .row.tight { gap: 8px; }
+  .row button { flex: 1; }
+  .rec {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 18px; font-size: 19px; font-weight: 600; margin-top: 14px;
+  }
+  .rec .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--bad); }
+  .rec.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .rec.on .dot { background: #fff; border-radius: 3px; }
+  .timer { font-variant-numeric: tabular-nums; font-size: 15px; color: var(--ink-soft); }
+  .meter { flex: 1; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .meter > span { display: block; height: 100%; width: 0; background: var(--good); }
+
+  .status { margin-top: 12px; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--line);
+    background: #fbf8f6; font-size: 14px; }
+  .status.good { background: var(--good-soft); border-color: #cfe7d9; }
+  .status.warn { background: var(--warn-soft); border-color: #f0e0be; }
+  .status.bad { background: var(--bad-soft); border-color: #f2cfcc; }
+  .status .t { font-weight: 600; }
+  .hidden { display: none !important; }
+
+  .nav { display: flex; gap: 8px; margin-top: 12px; }
+  .nav button { flex: 1; }
+
+  .spacer { flex: 1; }
+  footer { margin-top: auto; padding-top: 12px; display: flex; gap: 8px; }
+  footer button { flex: 1; }
+
+  .sheet { position: fixed; inset: 0; background: rgba(36, 26, 21, .45); display: flex; align-items: flex-end; z-index: 20; }
+  .sheet .panel { background: var(--card); width: 100%; max-height: 82%; border-radius: 16px 16px 0 0;
+    display: flex; flex-direction: column; }
+  .sheet h2 { font-size: 15px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; }
+  .list { overflow: auto; padding: 6px 0 calc(env(safe-area-inset-bottom) + 12px); }
+  .item { display: flex; gap: 10px; align-items: center; padding: 11px 16px; border-bottom: 1px solid #f3ece7; }
+  .item:active { background: #faf6f2; }
+  .item .n { width: 26px; color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .item .txt { flex: 1; font-size: 13.5px; }
+  .item .txt small { display: block; color: var(--ink-soft); font-size: 11px; }
+  .item .flag { font-size: 11px; padding: 2px 7px; border-radius: 99px; }
+  .item .flag.on { background: var(--good-soft); color: var(--good); }
+  .item .flag.off { background: #f4efeb; color: var(--ink-soft); }
+  .item.current { background: var(--accent-soft); }
+
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px);
+    transform: translateX(-50%); background: #241a15; color: #fff; padding: 10px 16px;
+    border-radius: 99px; font-size: 13.5px; z-index: 40; max-width: 88%; text-align: center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <strong style="font-size:15px">英闯星球 · 录音</strong>
+    <span class="counter" id="counter">0 / 0</span>
+  </header>
+  <div class="track"><span id="fill"></span></div>
+
+  <div class="card">
+    <div class="meta">
+      <span class="chip" id="chip-index">第 1 条</span>
+      <span class="chip plain" id="chip-group">—</span>
+      <span class="chip plain hidden" id="chip-state"></span>
+    </div>
+    <div class="line" id="line" lang="en">载入中…</div>
+    <div class="file" id="file"></div>
+
+    <div class="row tight" style="margin-top:14px">
+      <button id="btn-sample">播放示范</button>
+      <button id="btn-mine" disabled>听我的</button>
+    </div>
+
+    <button class="rec" id="btn-rec"><span class="dot"></span><span id="rec-label">开始录音</span></button>
+
+    <div class="row tight">
+      <span class="timer" id="timer">0.0s</span>
+      <span class="meter"><span id="meter"></span></span>
+    </div>
+
+    <div class="status hidden" id="status"></div>
+
+    <div class="nav">
+      <button id="btn-prev">上一条</button>
+      <button id="btn-unrecorded">下一条未录</button>
+      <button id="btn-next">下一条</button>
+    </div>
+  </div>
+
+  <footer>
+    <button id="btn-list">清单</button>
+    <button id="btn-export" class="primary">导出到手机</button>
+  </footer>
+</div>
+
+<div class="sheet hidden" id="sheet">
+  <div class="panel">
+    <h2><span>全部 89 条</span><button id="btn-close">关闭</button></h2>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
