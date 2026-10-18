@@ -20,6 +20,9 @@ App 不再自带音频脚本，也不再有 `audio-preview/`。它只**消费**�
   11 kHz/16-bit/单声道 WAV 并存成清单里的正确文件名，接着下一条。
 - **批量导入**：手机/录音笔录的 `m4a`/`mp3` 丢进 `work/inbox/`，离线转写后自动认出
   每条是哪句；认不准的不瞎猜，留给人处理。
+- **文档专题录音**：上传一份英文文档（PDF / docx / txt / md），自动提正文、按句切分、
+  生成音标与 TTS 示范音，然后像 App 清单一样逐句录。**只做独立练习，不进 App**：
+  专题数据全在 `work/docs/<slug>/`，`pack` / `publish` 永远不会碰它。
 - **机械校验**：文件是否齐全、命名、采样率/声道/位深、静音、爆音、时长异常。
 - **内容校验（ASR）**：Vosk 离线英文模型把每条录音转成文字，与台词逐词比对，
   输出 PASS / REVIEW / FAIL。这是"念错没念错"的自动检查。
@@ -30,7 +33,7 @@ App 不再自带音频脚本，也不再有 `audio-preview/`。它只**消费**�
 ```powershell
 # 一次性
 copy voicebuilder.config.example.json voicebuilder.config.json   # 改成你的 App 路径
-pip install vosk av pronouncing
+pip install vosk av pronouncing python-docx pypdf
 npm run model        # 下载离线 ASR 模型（~41 MB，可断点续传）
 npm run ui           # 打开 http://127.0.0.1:5180
 ```
@@ -47,11 +50,22 @@ npm run ui           # 打开 http://127.0.0.1:5180
 用手机或录音笔录的，把文件丢进 `work/inbox/` 再点「导入原始录音」即可，
 不需要装 ffmpeg。
 
+### 文档专题（独立练习，不进 App）
+
+网页顶部「清单」下拉里可以切换 App 题库和文档专题。点开「上传文档」，选一份英文
+文档（PDF / docx / txt / md，≤ 16 MB）→ 自动分句、生成音标与 TTS 示范音 → 逐句录音，
+操作与 App 清单完全一样（空格录音、`S` 听示范、`←` `→` 切换）。
+
+- 专题名 = 文件名；同名文件重复上传会**覆盖**原专题
+- 扫描版 / 图片型 PDF 提不出文字，会明确报错（不做 OCR）
+- 专题数据在 `work/docs/<slug>/`（原文、清单、示范音、录音各自独立子目录）；
+  打包与发布只读 `work/audio/`，专题内容**永远不会**进 App
+
 ## 命令行（不用网页也行）
 
 | 命令 | 作用 |
 |---|---|
-| `npm test` | 跑网页录音转码（WAV 编码/重采样）的单元测试 |
+| `npm test` | 单元测试 + 守卫：WAV 编码、专题隔离、PS 脚本、文档分句断言 |
 | `npm run worklists` | 生成 listening / recording 工作清单，并标注音标与发音提示 |
 | `npm run ipa` | 只给录音清单补音标与发音提示（需 `pronouncing`） |
 | `npm run model` | 下载 ASR 模型（每台机器一次） |
@@ -68,15 +82,19 @@ npm run ui           # 打开 http://127.0.0.1:5180
 voicebuilder.config.json   你的 App 路径（gitignore，剩 machine-specific）
 src/                       清单生成、导入、校验、TTS、打包、发布、网页服务器
   audio_text.py            文本比对与音频解码的共享实现（asr-verify 与 ingest 共用）
+  doc-to-worklist.py       文档（PDF/docx/txt/md）→ 分句 → 专题 worklist.json
   generate-ipa.py          用 CMU 词典生成逐词 IPA 与发音提示，写回录音清单
+  topics.mjs               专题目录解析（App 清单 / work/docs/<slug>）
+  tts-worklist.ps1         给任意 worklist 合成 11 kHz TTS 示范音
 web/                       本地网页界面
-  index.html               录音工作站
-  app.js                   录音、导航、保存、收尾按钮
+  index.html               录音工作站（含清单切换与文档上传）
+  app.js                   录音、导航、保存、清单切换、收尾按钮
   recorder.js              浏览器录音（getUserMedia + 重采样）
   audio-format.js          纯函数：Float32 → 16-bit WAV（有单测）
-test/                      node --test 用例
+test/                      node --test + Python 断言用例
 work/                      工作区（gitignore）
   audio/                   成品录音 WAV（App 真正拿到的东西）
+  docs/<slug>/             文档专题：原文、worklist、samples/、audio/（不进 App）
   samples/                 示范音，录音时播放（TTS 生成）
   inbox/                   手机/录音笔的原始文件，等待 import
   manifest.json            期望音频清单
@@ -97,7 +115,7 @@ models/                    Vosk 模型（gitignore）
   `content/audio-preview-manifest.json.js`（见 App 的 `docs/pitfalls.md` MP-01）。
 - **行尾**：打包器把 manifest 的换行统一成 LF，保证与 App 仓库逐字节一致，
   不产生格式噪音。
-- **换机器**：`pip install vosk av pronouncing` 再 `npm run model`。
+- **换机器**：`pip install vosk av pronouncing python-docx pypdf` 再 `npm run model`。
 
 ## 这个仓库里没有什么
 
