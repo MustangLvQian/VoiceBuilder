@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "ui": "node src/server.mjs",
-    "test": "node --test",
+    "test": "node --test && python test/doc-to-worklist.test.py",
     "worklists": "node src/build-listening-worklist.mjs && node src/build-recording-worklist.mjs && npm run ipa",
     "ipa": "python src/generate-ipa.py",
     "model": "powershell -ExecutionPolicy Bypass -File src/fetch-asr-model.ps1",

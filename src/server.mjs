@@ -18,17 +18,23 @@ import {
 } from 'node:fs'
 import { join, extname, basename, resolve, relative, sep } from 'node:path'
 import {
-  ROOT, WORK, AUDIO_DIR, SAMPLES_DIR, INBOX_DIR, REPORTS_DIR, CONFIG_PATH,
-  MANIFEST_PATH, RECORDING_WORKLIST, DEFAULT_MODEL, loadConfig, appPaths,
+  ROOT, WORK, INBOX_DIR, REPORTS_DIR, CONFIG_PATH,
+  MANIFEST_PATH, RECORDING_WORKLIST, DOCS_DIR,
+  DEFAULT_MODEL, loadConfig, appPaths,
 } from './paths.mjs'
 import { STEPS, REPORT_NAMES } from './pipeline.mjs'
+import { resolveTopic, topicFolder } from './topics.mjs'
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5180
 const WEB_DIR = join(ROOT, 'web')
 
 // 11 kHz / 16-bit / mono is ~22 KB/s; 8 MB is a generous ceiling for one line.
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+// A document is text, not audio: 16 MiB fits a large article PDF with room to
+// spare without letting a stray huge file fill the disk.
+const MAX_DOC_BYTES = 16 * 1024 * 1024
 const ACCEPTED_SAMPLE_RATE = 11025
+const DOC_EXTENSIONS = new Set(['.pdf', '.docx', '.txt', '.md', '.markdown'])
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -70,7 +76,51 @@ function listWavs(dir) {
   return new Set(readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.wav')))
 }
 
-function readWorklist() {
+// ---- topics -------------------------------------------------------------------
+//
+// resolveTopic()/topicFolder() live in topics.mjs so they can be unit-tested for
+// path-traversal safety. The helpers here are the ones that need the filesystem.
+function readTopicMeta(dir) {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function listTopics() {
+  const summarize = (topic) => {
+    const clips = clipsPayload(topic)
+    return {
+      id: topic.id,
+      name: topic.app ? 'App 题库' : (readTopicMeta(topic.dir)?.name || topic.id),
+      app: Boolean(topic.app),
+      total: clips.length,
+      recorded: clips.filter((c) => c.hasRecording).length,
+      withSample: clips.filter((c) => c.hasSample).length,
+    }
+  }
+  const topics = [summarize(resolveTopic(''))]
+  if (existsSync(DOCS_DIR)) {
+    for (const entry of readdirSync(DOCS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      const topic = topicFolder(entry.name)
+      if (!topic || !existsSync(topic.worklist)) continue
+      topics.push(summarize(topic))
+    }
+  }
+  return topics
+}
+
+function readWorklist(topic) {
+  if (!topic.app) {
+    if (!existsSync(topic.worklist)) return []
+    try {
+      return JSON.parse(readFileSync(topic.worklist, 'utf8'))
+    } catch {
+      return []
+    }
+  }
   const path = existsSync(RECORDING_WORKLIST)
     ? RECORDING_WORKLIST
     : existsSync(MANIFEST_PATH) ? MANIFEST_PATH : null
@@ -82,10 +132,12 @@ function readWorklist() {
   }
 }
 
-function clipsPayload() {
-  const clips = readWorklist()
-  const samples = listWavs(SAMPLES_DIR)
-  const recordings = listWavs(AUDIO_DIR)
+function clipsPayload(topic = resolveTopic('')) {
+  const clips = readWorklist(topic)
+  const samples = listWavs(topic.samples)
+  const recordings = listWavs(topic.audio)
+  // Topic files share names with the App's, so the URL has to name its topic.
+  const q = topic.id ? `?topic=${encodeURIComponent(topic.id)}` : ''
   return clips.map((clip, i) => {
     const file = clip.file || `${clip.id}.wav`
     return {
@@ -106,8 +158,8 @@ function clipsPayload() {
       tips: Array.isArray(clip.tips) ? clip.tips : [],
       hasSample: samples.has(file),
       hasRecording: recordings.has(file),
-      sampleUrl: samples.has(file) ? `/samples/${encodeURIComponent(file)}` : null,
-      recordingUrl: recordings.has(file) ? `/recordings/${encodeURIComponent(file)}` : null,
+      sampleUrl: samples.has(file) ? `/samples/${encodeURIComponent(file)}${q}` : null,
+      recordingUrl: recordings.has(file) ? `/recordings/${encodeURIComponent(file)}${q}` : null,
     }
   })
 }
@@ -221,8 +273,80 @@ function inspectWav(buffer) {
   return { ok: true, sampleRate, bytes: buffer.length }
 }
 
-function findClip(id) {
-  return clipsPayload().find((c) => c.id === id) || null
+function findClip(id, topic = resolveTopic('')) {
+  return clipsPayload(topic).find((c) => c.id === id) || null
+}
+
+// Upload a document, parse it into a topic worklist, then render its samples.
+// This streams a plain-text log (upload -> parse -> IPA -> TTS) the way the
+// pipeline steps do, because rendering samples for a long article takes a while.
+async function createTopic(req, res, url) {
+  const name = url.searchParams.get('name') || ''
+  const ext = extname(name).toLowerCase()
+  if (!name) return sendJson(res, 400, { ok: false, error: '缺少文件名（?name=...）' })
+  if (!DOC_EXTENSIONS.has(ext)) {
+    return sendJson(res, 400, { ok: false, error: `不支持的格式 ${ext || '(无扩展名)'}，只支持 PDF / docx / txt / md` })
+  }
+
+  let buffer
+  try {
+    buffer = await readBody(req, MAX_DOC_BYTES)
+  } catch (e) {
+    return sendJson(res, 413, { ok: false, error: String(e.message) })
+  }
+  if (!buffer.length) return sendJson(res, 400, { ok: false, error: '文件是空的' })
+
+  mkdirSync(DOCS_DIR, { recursive: true })
+  const temp = join(DOCS_DIR, `.upload-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`)
+  writeFileSync(temp, buffer)
+
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Accel-Buffering': 'no',
+  })
+  try {
+    res.write(`收到 ${name}（${(buffer.length / 1024).toFixed(1)} KB）\n\n`)
+
+    // 1. Parse the document into sentence-per-clip items.
+    res.write('===== 解析文档、分句 =====\n')
+    const parsed = await runCapture('python', ['src/doc-to-worklist.py', '--input', temp, '--name', name, '--docs-dir', DOCS_DIR])
+    res.write(parsed.out)
+    if (parsed.err) res.write(parsed.err)
+    if (parsed.code !== 0) {
+      res.write('\n[解析失败，未生成专题]\n')
+      return res.end()
+    }
+    const summaryLine = parsed.out.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('{')).pop()
+    const summary = summaryLine ? JSON.parse(summaryLine) : null
+    const topic = summary ? topicFolder(summary.slug) : null
+    if (!topic || !existsSync(topic.worklist)) {
+      res.write('\n[解析没有返回可用的专题目录]\n')
+      return res.end()
+    }
+
+    // 2. IPA + tips (nice to have: a topic is still usable without them).
+    res.write('\n===== 生成音标与发音提示 =====\n')
+    const ipa = await spawnStream('python', ['src/generate-ipa.py', '--list', topic.worklist], res)
+    if (ipa !== 0) res.write('[音标生成失败，不影响录音；确认已 pip install pronouncing]\n')
+
+    // 3. Sample WAVs (also nice to have: the narrator can record without them).
+    res.write('\n===== 合成示范音（Windows TTS）=====\n')
+    const tts = await spawnStream('powershell', [
+      '-ExecutionPolicy', 'Bypass', '-File', 'src/tts-worklist.ps1',
+      '-Worklist', topic.worklist, '-OutputDirectory', topic.samples,
+    ], res)
+    if (tts !== 0) res.write('[示范音合成失败，仍可录音，只是没有示范音]\n')
+
+    res.write(`\n[完成] 专题「${summary.name}」共 ${summary.total} 句\n`)
+    res.write(`[专题] ${topic.id}\n`)
+    return res.end()
+  } catch (err) {
+    res.write(`\n[出错] ${err && err.message ? err.message : err}\n`)
+    return res.end()
+  } finally {
+    try { unlinkSync(temp) } catch { /* already gone */ }
+  }
 }
 
 function serveFile(res, filePath, headers = {}) {
@@ -254,9 +378,14 @@ const server = http.createServer(async (req, res) => {
 
     // ---- data -----------------------------------------------------------------
     if (req.method === 'GET' && path === '/api/clips') {
-      const clips = clipsPayload()
       const session = url.searchParams.get('session') || ''
+      const topic = resolveTopic(session)
+      if (!topic) return sendJson(res, 404, { error: `没有这个专题：${session}` })
+      const clips = clipsPayload(topic)
       return sendJson(res, 200, { clips, total: clips.length, session })
+    }
+    if (req.method === 'GET' && path === '/api/topics') {
+      return sendJson(res, 200, { topics: listTopics() })
     }
     if (req.method === 'GET' && path === '/api/status') {
       return sendJson(res, 200, await statusPayload())
@@ -288,16 +417,22 @@ const server = http.createServer(async (req, res) => {
 
     // ---- audio ------------------------------------------------------------------
     if (req.method === 'GET' && path.startsWith('/samples/')) {
-      return serveFrom(res, SAMPLES_DIR, path.slice('/samples/'.length))
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendText(res, 404, 'not found')
+      return serveFrom(res, topic.samples, path.slice('/samples/'.length))
     }
     if (req.method === 'GET' && path.startsWith('/recordings/')) {
-      return serveFrom(res, AUDIO_DIR, path.slice('/recordings/'.length))
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendText(res, 404, 'not found')
+      return serveFrom(res, topic.audio, path.slice('/recordings/'.length))
     }
 
     // ---- recording set writes ---------------------------------------------------
     if ((req.method === 'PUT' || req.method === 'POST') && path.startsWith('/api/recordings/')) {
       const id = decodeURIComponent(path.slice('/api/recordings/'.length))
-      const clip = findClip(id)
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendJson(res, 404, { ok: false, error: `没有这个专题` })
+      const clip = findClip(id, topic)
       if (!clip) return sendJson(res, 404, { ok: false, error: `清单里没有 “${id}”` })
       let buffer
       try {
@@ -307,20 +442,23 @@ const server = http.createServer(async (req, res) => {
       }
       const info = inspectWav(buffer)
       if (!info.ok) return sendJson(res, 400, { ok: false, error: info.reason })
-      mkdirSync(AUDIO_DIR, { recursive: true })
-      const target = join(AUDIO_DIR, clip.file)
+      mkdirSync(topic.audio, { recursive: true })
+      const target = join(topic.audio, clip.file)
       writeFileSync(target, buffer)
+      const q = topic.id ? `?topic=${encodeURIComponent(topic.id)}` : ''
       return sendJson(res, 200, {
         ok: true, id, file: clip.file, bytes: info.bytes, sampleRate: info.sampleRate,
-        recordingUrl: `/recordings/${encodeURIComponent(clip.file)}`,
+        recordingUrl: `/recordings/${encodeURIComponent(clip.file)}${q}`,
         duration: Number(url.searchParams.get('duration') || 0) || null,
       })
     }
     if (req.method === 'DELETE' && path.startsWith('/api/recordings/')) {
       const id = decodeURIComponent(path.slice('/api/recordings/'.length))
-      const clip = findClip(id)
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendJson(res, 404, { ok: false, error: `没有这个专题` })
+      const clip = findClip(id, topic)
       if (!clip) return sendJson(res, 404, { ok: false, error: `清单里没有 “${id}”` })
-      const target = join(AUDIO_DIR, clip.file)
+      const target = join(topic.audio, clip.file)
       if (!existsSync(target)) return sendJson(res, 200, { ok: true, id, removed: false })
       unlinkSync(target)
       return sendJson(res, 200, { ok: true, id, removed: true })
@@ -329,15 +467,19 @@ const server = http.createServer(async (req, res) => {
     // ---- one-clip ASR re-check ---------------------------------------------------
     if (req.method === 'POST' && path.startsWith('/api/verify/')) {
       const id = decodeURIComponent(path.slice('/api/verify/'.length))
-      const clip = findClip(id)
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendJson(res, 404, { ok: false, error: `没有这个专题` })
+      const clip = findClip(id, topic)
       if (!clip) return sendJson(res, 404, { ok: false, error: `清单里没有 “${id}”` })
-      if (!existsSync(join(AUDIO_DIR, clip.file))) {
+      if (!existsSync(join(topic.audio, clip.file))) {
         return sendJson(res, 400, { ok: false, error: '还没有录音' })
       }
       if (!existsSync(join(DEFAULT_MODEL, 'am'))) {
         return sendJson(res, 400, { ok: false, error: 'ASR 模型未下载，先跑「下载 ASR 模型」' })
       }
-      const { code, out, err } = await runCapture('python', ['src/asr-verify.py', '--only', id, '--json', '--no-report'])
+      const args = ['src/asr-verify.py', '--only', id, '--json', '--no-report']
+      if (!topic.app) args.push('--dir', topic.audio, '--list', topic.worklist)
+      const { code, out, err } = await runCapture('python', args)
       const line = out.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('{')).pop()
       if (!line) {
         return sendJson(res, 500, { ok: false, error: err.trim() || out.trim() || 'ASR 没有返回结果', code })
@@ -345,6 +487,11 @@ const server = http.createServer(async (req, res) => {
       const parsed = JSON.parse(line)
       const row = (parsed.rows || [])[0] || null
       return sendJson(res, 200, { ok: true, clipId: id, status: row ? row.status : 'SKIP', sim: row ? row.sim : null, got: row ? row.got : '', diff: row ? row.diff : '' })
+    }
+
+    // ---- document topics ---------------------------------------------------------
+    if (req.method === 'POST' && path === '/api/docs') {
+      return await createTopic(req, res, url)
     }
 
     // ---- import ------------------------------------------------------------------

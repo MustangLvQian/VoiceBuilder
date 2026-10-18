@@ -148,6 +148,10 @@
 
   details.tools { margin-top: 26px; }
   details.tools > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+  details.doc-upload { margin-top: 4px; }
+  details.doc-upload > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; color: var(--ink-soft); }
+  details.doc-upload .console { margin-top: 12px; }
+  #topic-card select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; max-width: 320px; }
   .tool-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
   pre.console {
     background: #241a15; color: #f3ece7; border-radius: 10px; padding: 14px;
@@ -171,6 +175,26 @@
   </header>
 
   <div id="banner" class="status bad hidden"></div>
+
+  <section class="card" id="topic-card">
+    <div class="field" style="margin-top:0">
+      <label style="white-space:nowrap">清单
+        <select id="topic-select"><option value="">App 题库</option></select>
+      </label>
+      <span class="hint" id="topic-hint"></span>
+      <span class="spacer"></span>
+      <button id="btn-refresh-topics">刷新清单列表</button>
+    </div>
+    <details class="doc-upload" id="doc-tools">
+      <summary>上传文章新建专题（PDF / docx / txt / md，独立练习，不进 App）</summary>
+      <div class="field">
+        <input type="file" id="doc-file" accept=".pdf,.docx,.txt,.md,.markdown">
+        <button id="btn-upload-doc" class="primary">上传并生成清单</button>
+        <span class="hint">上限 16 MB。扫描版/图片型 PDF 不支持 OCR，会明确报错。</span>
+      </div>
+      <pre class="console" id="doc-console">选择文件后点「上传并生成清单」。解析 → 分句 → 音标 → 示范音，可能需要一会儿。</pre>
+    </details>
+  </section>
 
   <section class="card" id="recorder-card">
     <div class="meta">

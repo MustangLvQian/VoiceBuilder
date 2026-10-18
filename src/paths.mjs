@@ -16,6 +16,14 @@ export const AUDIO_DIR = join(WORK, 'audio')
 export const SAMPLES_DIR = join(WORK, 'samples')
 /** Raw files from a phone/recorder, awaiting import and renaming. */
 export const INBOX_DIR = join(WORK, 'inbox')
+/**
+ * Document topics: independent practice, explicitly NOT part of the App.
+ * Each topic is work/docs/<slug>/{doc.<ext>,worklist.json,samples/,audio/}.
+ * pack-miniprogram.ps1 and publish-pwa.mjs read work/audio + work/manifest.json,
+ * never this folder, which is what keeps topics out of the shipped App.
+ */
+export const DOCS_DIR = join(WORK, 'docs')
+export const TOPIC_WORKLIST_NAME = 'worklist.json'
 export const REPORTS_DIR = join(WORK, 'reports')
 export const MODELS_DIR = join(ROOT, 'models')
 export const CONFIG_PATH = join(ROOT, 'voicebuilder.config.json')
