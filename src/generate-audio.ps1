@@ -40,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($ListeningWorklist)) {
   $ListeningWorklist = Join-Path $vbRoot 'work\listening-worklist.json'
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-  $OutputDirectory = Join-Path $vbRoot 'work\audio'
+  $OutputDirectory = Join-Path $vbRoot 'work\samples'
 }
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
   $ManifestPath = Join-Path $vbRoot 'work\manifest.json'

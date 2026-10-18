@@ -10,7 +10,12 @@ import { dirname, join, resolve } from 'node:path'
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const WORK = join(ROOT, 'work')
+/** Finished recordings: what the App receives. One file per worklist item. */
 export const AUDIO_DIR = join(WORK, 'audio')
+/** Reference samples (TTS voice, or an approved human take) played while recording. */
+export const SAMPLES_DIR = join(WORK, 'samples')
+/** Raw files from a phone/recorder, awaiting import and renaming. */
+export const INBOX_DIR = join(WORK, 'inbox')
 export const REPORTS_DIR = join(WORK, 'reports')
 export const MODELS_DIR = join(ROOT, 'models')
 export const CONFIG_PATH = join(ROOT, 'voicebuilder.config.json')

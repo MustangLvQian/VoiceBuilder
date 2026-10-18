@@ -1,279 +1,249 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>VoiceBuilder · 音频生产与校验</title>
-    <style>
-      :root {
-        color-scheme: light;
-        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-        --ink: #232135;
-        --muted: #6b6880;
-        --line: #e6e3f0;
-        --bg: #f6f5fb;
-        --card: #fff;
-        --accent: #5b4bd6;
-        --ok: #1c7c4a;
-        --warn: #a05a00;
-        --bad: #b3261e;
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: var(--bg); color: var(--ink); }
-      header { padding: 22px 24px 6px; }
-      h1 { margin: 0; font-size: 22px; }
-      .sub { color: var(--muted); margin-top: 4px; font-size: 14px; }
-      main { max-width: 1040px; margin: 0 auto; padding: 16px 24px 60px; display: grid; gap: 18px; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
-      .card h2 { margin: 0 0 12px; font-size: 16px; }
-      label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
-      input[type="text"], input[type="number"] {
-        width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
-        font: inherit; background: #fbfaff;
-      }
-      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-      .row > div { flex: 1 1 220px; }
-      button {
-        font: inherit; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line);
-        background: #fff; color: var(--ink); cursor: pointer;
-      }
-      button:hover { border-color: #cfc9ea; }
-      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-      button.full { background: #1c7c4a; border-color: #1c7c4a; color: #fff; }
-      button:disabled { opacity: .5; cursor: not-allowed; }
-      .steps { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-      .step { border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px; background: #fdfcff; }
-      .step .t { font-weight: 600; }
-      .step .h { color: var(--muted); font-size: 12.5px; margin: 4px 0 10px; min-height: 32px; }
-      .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
-      .stat { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; }
-      .stat .k { font-size: 12.5px; color: var(--muted); }
-      .stat .v { font-weight: 600; margin-top: 3px; word-break: break-all; }
-      .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; }
-      .pill.ok { background: #e3f5ea; color: var(--ok); }
-      .pill.warn { background: #fdf0dd; color: var(--warn); }
-      .pill.bad { background: #fbe4e2; color: var(--bad); }
-      pre#log {
-        margin: 0; padding: 14px; border-radius: 12px; background: #17141f; color: #e8e6f2;
-        font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; line-height: 1.5;
-        max-height: 380px; overflow: auto; white-space: pre-wrap; word-break: break-word;
-      }
-      .clips { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
-      .clip { display: grid; grid-template-columns: 1fr 300px; gap: 12px; align-items: center; padding: 10px 13px; border-top: 1px solid var(--line); }
-      .clip:first-child { border-top: 0; }
-      .clip .id { font-size: 12px; color: var(--muted); }
-      .clip .tx { margin: 3px 0 0; font-size: 14px; }
-      audio { width: 100%; }
-      .grp { padding: 8px 13px; background: #f1effa; font-size: 13px; font-weight: 600; color: #4a4568; }
-      .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-      a.dl { color: var(--accent); font-size: 13px; }
-      .hint { color: var(--muted); font-size: 13px; }
-      @media (max-width: 640px) { .clip { grid-template-columns: 1fr; } }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>VoiceBuilder</h1>
-      <div class="sub">英闯星球音频生产与校验：生成清单 → 合成/收录 → 校验 → 打包交给 App</div>
-    </header>
-    <main>
-      <section class="card">
-        <h2>App 路径与设置</h2>
-        <div class="row">
-          <div style="flex:1 1 480px">
-            <label for="appRoot">App 根目录（读题库与 LUMI-VOICE-LINES.md，写回分包与 public/audio）</label>
-            <input id="appRoot" type="text" placeholder="D:\\LvQian\\YingChuangXingQiu">
-          </div>
-          <div>
-            <label for="ttsVoice">TTS 语音</label>
-            <input id="ttsVoice" type="text" value="Microsoft Zira Desktop">
-          </div>
-          <div style="flex:0 0 130px">
-            <label for="sampleRate">采样率</label>
-            <input id="sampleRate" type="number" value="11025">
-          </div>
-          <div style="flex:0 0 auto"><button class="primary" id="save">保存</button></div>
-        </div>
-      </section>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoiceBuilder 录音工作站</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --ink: #241a15;
+    --ink-soft: #6b5a51;
+    --paper: #faf6f2;
+    --card: #ffffff;
+    --line: #e7ddd5;
+    --accent: #c2491c;
+    --accent-soft: #fdece4;
+    --good: #1f7a4d;
+    --good-soft: #e6f4ec;
+    --warn: #a56a00;
+    --warn-soft: #fdf3e0;
+    --bad: #b3261e;
+    --bad-soft: #fdeceb;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, select, input { font: inherit; color: inherit; }
+  button {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, transform .06s ease;
+  }
+  button:hover:not(:disabled) { border-color: #d6c7bd; background: #fffdfb; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #a83c14; border-color: #a83c14; }
+  a { color: var(--accent); }
 
-      <section class="card">
-        <h2>当前状态</h2>
-        <div class="grid" id="status">载入中……</div>
-      </section>
+  .app { max-width: 900px; margin: 0 auto; padding: 20px 20px 60px; }
+  header.bar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    justify-content: space-between; margin-bottom: 16px;
+  }
+  h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
+  h1 small { font-weight: 400; color: var(--ink-soft); font-size: 13px; margin-left: 8px; }
 
-      <section class="card">
-        <h2>操作</h2>
-        <div class="steps" id="steps"></div>
-        <div style="margin-top:14px"><pre id="log">点上面的按钮开始。输出会实时显示在这里。</pre></div>
-      </section>
+  .progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); }
+  .track { width: 180px; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .track > span { display: block; height: 100%; width: 0; background: var(--good); transition: width .25s ease; }
 
-      <section class="card">
-        <h2>试听</h2>
-        <div class="tools">
-          <button id="reload-clips">刷新试听列表</button>
-          <span class="hint" id="clip-count"></span>
-        </div>
-        <div class="clips" id="clips"><p class="hint" style="padding:12px">点「刷新试听列表」载入。</p></div>
-      </section>
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px;
+  }
+  .card + .card { margin-top: 16px; }
 
-      <section class="card">
-        <h2>校验报告</h2>
-        <div class="tools" id="report-buttons"></div>
-        <pre id="report" style="background:#fbfaff;color:#232135;padding:14px;border-radius:12px;border:1px solid #e6e3f0;max-height:420px;overflow:auto;white-space:pre-wrap">点上面的报告名查看。</pre>
-      </section>
-    </main>
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .chip {
+    font-size: 12px; padding: 3px 9px; border-radius: 99px;
+    background: var(--accent-soft); color: #8d3411; border: 1px solid #f6d9ca;
+  }
+  .chip.plain { background: #f4efeb; color: var(--ink-soft); border-color: var(--line); }
 
-    <script>
-      const $ = (id) => document.getElementById(id)
-      const log = $('log')
-      let running = false
+  .line-text {
+    font-size: 27px; line-height: 1.45; letter-spacing: .1px;
+    margin: 4px 0 20px; min-height: 2.9em;
+  }
+  .line-text .dim { color: #c9b8ad; }
 
-      async function getJson(url, options) {
-        const res = await fetch(url, options)
-        if (!res.ok) throw new Error(`${url} -> ${res.status}`)
-        return res.json()
-      }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
-      async function loadConfig() {
-        const c = await getJson('/api/config')
-        $('appRoot').value = c.appRoot || ''
-        $('ttsVoice').value = c.ttsVoice || 'Microsoft Zira Desktop'
-        $('sampleRate').value = c.sampleRate || 11025
-      }
+  .rec {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 22px; font-size: 17px; font-weight: 600;
+    border-radius: 11px; border: 1px solid var(--line); background: var(--card);
+  }
+  .rec .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bad); }
+  .rec.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .rec.on .dot { background: #fff; border-radius: 3px; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .rec:disabled { opacity: .45; }
 
-      function pill(ok, okText, badText) {
-        return ok
-          ? `<span class="pill ok">${okText}</span>`
-          : `<span class="pill bad">${badText}</span>`
-      }
+  .timer { font-variant-numeric: tabular-nums; font-size: 17px; color: var(--ink-soft); min-width: 62px; }
+  .meter { width: 150px; height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .meter > span { display: block; height: 100%; width: 0; background: var(--good); }
 
-      function stat(key, value) {
-        return `<div class="stat"><div class="k">${key}</div><div class="v">${value}</div></div>`
-      }
+  .status { margin-top: 16px; font-size: 14px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line); background: #fbf8f6; }
+  .status .label { font-weight: 600; }
+  .status.good { background: var(--good-soft); border-color: #cfe7d9; }
+  .status.warn { background: var(--warn-soft); border-color: #f0e0be; }
+  .status.bad { background: var(--bad-soft); border-color: #f2cfcc; }
+  .status .diff { font-family: ui-monospace, Consolas, monospace; font-size: 13px; margin-top: 6px; word-break: break-word; }
+  .status .diff b { color: var(--good); }
+  .status .diff i { color: var(--bad); text-decoration: line-through; font-style: normal; }
+  .hidden { display: none !important; }
 
-      async function loadStatus() {
-        const s = await getJson('/api/status')
-        const appOk = s.appRootExists
-        const rows = [
-          stat('App 根目录', s.appRoot ? `${pill(appOk, '存在', '不存在')} <span class="hint">${s.appRoot}</span>` : '<span class="pill bad">未设置</span>'),
-          stat('LUMI-VOICE-LINES.md', pill(s.lumi.exists, '找到', '缺失')),
-          stat('题库 JSON', s.banks.count ? `${s.banks.count} 个` : '<span class="pill bad">0 个</span>'),
-          stat('工作清单', pill(s.worklists, '已生成', '未生成')),
-          stat('清单条目', String(s.manifestCount)),
-          stat('WAV 文件', s.audioCount ? `${s.audioCount} 个` : '<span class="pill warn">0</span>'),
-          stat('ASR 模型', pill(s.model.ready, '就绪', '未下载')),
-          stat('ASR 环境', pill(s.python.ok, '可用', '不可用') + ` <span class="hint">${s.python.detail}</span>`),
-        ]
-        $('status').innerHTML = rows.join('')
+  .line-grid {
+    display: flex; flex-wrap: wrap; gap: 14px 12px;
+    margin: 4px 0 18px; line-height: 1.5;
+  }
+  .word-cell {
+    display: inline-flex; flex-direction: column; align-items: center;
+    min-width: 38px;
+  }
+  .word-cell .ipa-above {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px; color: #b06a38; margin-bottom: 3px;
+    white-space: nowrap;
+  }
+  .word-cell .word-below {
+    font-size: 19px; font-weight: 600; color: var(--ink);
+    border-bottom: 2px solid #e7ddd5; padding-bottom: 2px;
+  }
+  .word-cell.punct { min-width: auto; }
+  .word-cell.punct .ipa-above { visibility: hidden; }
+  .word-cell.punct .word-below {
+    border-bottom: none; color: var(--ink-soft); font-weight: 400;
+  }
 
-        const rb = $('report-buttons')
-        rb.innerHTML = ''
-        for (const r of s.reports) {
-          const b = document.createElement('button')
-          b.textContent = (r.exists ? '查看 ' : '（未生成）') + r.name
-          b.disabled = !r.exists
-          b.onclick = () => showReport(r.name)
-          rb.append(b)
-        }
-      }
+  .nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+  .spacer { flex: 1 1 auto; }
+  .hint { font-size: 12.5px; color: var(--ink-soft); }
+  .ipa {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 14px; color: var(--ink-soft); margin: 2px 0 10px;
+    letter-spacing: .02em; line-height: 1.7; word-break: break-word;
+  }
+  .tips { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px;
+    background: #fdf9f4; border: 1px solid #f0e6dd; }
+  .tips .tips-title { font-size: 12px; font-weight: 600; color: var(--ink-soft);
+    margin-bottom: 6px; }
+  .tips ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-soft); }
+  .tips li { margin-bottom: 3px; line-height: 1.5; }
+  kbd {
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+    padding: 1px 5px; background: #fff; font-family: inherit; font-size: 12px;
+  }
 
-      async function loadSteps() {
-        const steps = await getJson('/api/steps')
-        const box = $('steps')
-        box.innerHTML = ''
-        for (const s of steps) {
-          const el = document.createElement('div')
-          el.className = 'step'
-          el.innerHTML = `<div class="t">${s.label}</div><div class="h">${s.hint || ''}</div>`
-          const b = document.createElement('button')
-          b.className = s.full ? 'full' : ''
-          b.textContent = '运行'
-          b.onclick = () => runStep(s.id, b)
-          el.append(b)
-          box.append(el)
-        }
-      }
+  details.tools { margin-top: 26px; }
+  details.tools > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+  .tool-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  pre.console {
+    background: #241a15; color: #f3ece7; border-radius: 10px; padding: 14px;
+    font: 12.5px/1.55 ui-monospace, Consolas, monospace; max-height: 300px; overflow: auto;
+    white-space: pre-wrap; word-break: break-word; margin: 0;
+  }
+  .reports { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13.5px; margin-top: 12px; }
+  .field { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; font-size: 13.5px; }
+  .field input[type=text] { flex: 1 1 320px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .empty { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1>VoiceBuilder 录音工作站 <small>逐句录，自动存成正确文件名</small></h1>
+    <div class="progress">
+      <span id="progress-label">已录 0 / 0</span>
+      <span class="track"><span id="progress-fill"></span></span>
+    </div>
+  </header>
 
-      async function runStep(id, button) {
-        if (running) return
-        running = true
-        log.textContent = ''
-        button.disabled = true
-        try {
-          const res = await fetch(`/api/run/${id}`, { method: 'POST' })
-          const reader = res.body.getReader()
-          const dec = new TextDecoder()
-          for (;;) {
-            const { done, value } = await reader.read()
-            if (done) break
-            log.textContent += dec.decode(value, { stream: true })
-            log.scrollTop = log.scrollHeight
-          }
-        } catch (err) {
-          log.textContent += `\n[请求失败] ${err.message}\n`
-        } finally {
-          running = false
-          button.disabled = false
-          loadStatus().catch(() => {})
-        }
-      }
+  <div id="banner" class="status bad hidden"></div>
 
-      async function loadClips() {
-        const items = await getJson('/api/manifest')
-        const box = $('clips')
-        box.innerHTML = ''
-        $('clip-count').textContent = items.length ? `${items.length} 条` : '没有清单（先「生成工作清单」或用 TTS 合成）'
-        if (!items.length) {
-          box.innerHTML = '<p class="hint" style="padding:12px">清单为空。</p>'
-          return
-        }
-        let current = null
-        for (const it of items) {
-          const grp = it.group || it.source
-          if (grp !== current) {
-            current = grp
-            const g = document.createElement('div')
-            g.className = 'grp'
-            g.textContent = grp
-            box.append(g)
-          }
-          const row = document.createElement('div')
-          row.className = 'clip'
-          const copy = document.createElement('div')
-          copy.innerHTML = `<div class="id">${it.id}</div><p class="tx"></p>`
-          copy.querySelector('.tx').textContent = it.text || ''
-          const audio = document.createElement('audio')
-          audio.controls = true
-          audio.preload = 'none'
-          audio.src = `/audio/${encodeURIComponent(it.file)}`
-          row.append(copy, audio)
-          box.append(row)
-        }
-      }
+  <section class="card" id="recorder-card">
+    <div class="meta">
+      <span class="chip" id="clip-index">第 1 / 89 条</span>
+      <span class="chip plain" id="clip-group">—</span>
+      <span class="chip plain" id="clip-file">—</span>
+      <span class="chip plain hidden" id="clip-state"></span>
+    </div>
 
-      async function showReport(name) {
-        const res = await fetch(`/api/report?name=${encodeURIComponent(name)}`)
-        $('report').textContent = res.ok ? await res.text() : '读取失败'
-      }
+    <div class="line-grid" id="clip-line-grid" lang="en"></div>
+    <div class="tips hidden" id="clip-tips">
+      <div class="tips-title">发音提示</div>
+      <ul id="clip-tips-list"></ul>
+    </div>
 
-      $('save').onclick = async () => {
-        await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            appRoot: $('appRoot').value.trim(),
-            ttsVoice: $('ttsVoice').value.trim(),
-            sampleRate: Number($('sampleRate').value) || 11025,
-          }),
-        })
-        log.textContent = '设置已保存。'
-        await loadStatus()
-      }
-      $('reload-clips').onclick = () => loadClips().catch((e) => { $('clips').textContent = e.message })
+    <div class="controls">
+      <button id="btn-sample" title="快捷键 S">播放示范</button>
+      <button id="btn-mine" title="快捷键 P">播放我的录音</button>
+      <span class="spacer"></span>
+      <span class="timer" id="timer">0.0s</span>
+      <span class="meter" title="输入电平"><span id="meter-fill"></span></span>
+      <button class="rec" id="btn-rec" title="快捷键 空格"><span class="dot"></span><span id="rec-label">开始录音</span></button>
+    </div>
 
-      ;(async () => {
-        try { await loadConfig(); await loadSteps(); await loadStatus() } catch (e) { log.textContent = String(e) }
-      })()
-    </script>
-  </body>
+    <div id="status" class="status hidden"></div>
+
+    <div class="nav">
+      <button id="btn-prev" title="上一条 (←)">←</button>
+      <button id="btn-next" title="下一条 (→)">→</button>
+      <button id="btn-first-unrecorded" title="跳到第一条还没录的">第一条未录</button>
+      <span class="spacer"></span>
+      <label class="hint"><input type="checkbox" id="only-unrecorded"> 只看未录</label>
+      <button id="btn-delete" title="删除这条的录音">删除</button>
+    </div>
+
+    <p class="hint" style="margin:16px 0 0">
+      <kbd>空格</kbd> 录音 / 停止　<kbd>S</kbd> 示范　<kbd>P</kbd> 我的录音　
+      <kbd>←</kbd><kbd>→</kbd> 切换　<kbd>Enter</kbd> 下一条
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="field">
+      <label><input type="checkbox" id="auto-save" checked> 停录后自动保存</label>
+      <label><input type="checkbox" id="auto-verify"> 保存后自动做内容校验（较慢，需 ASR 模型）</label>
+      <label>麦克风
+        <select id="mic-select"><option value="">默认设备</option></select>
+      </label>
+    </div>
+    <div class="field">
+      <label style="white-space:nowrap">App 仓库路径</label>
+      <input type="text" id="app-root" placeholder="例如 D:\path\to\YingChuangXingQiu">
+      <button id="btn-save-root">保存</button>
+      <span class="hint" id="root-state"></span>
+    </div>
+  </section>
+
+  <details class="tools">
+    <summary>收尾与工具（全部录完后用）</summary>
+
+    <div class="tool-grid" id="step-buttons"></div>
+    <div class="tool-grid">
+      <button id="btn-oneclick" class="primary">一键收尾：校验 → 打包 → 发布</button>
+      <button id="btn-import">导入 work/inbox 里的原始文件</button>
+      <button id="btn-refresh">重新载入清单</button>
+    </div>
+
+    <pre class="console" id="console">就绪。录音保存在 work/audio/，示范音来自 work/samples/。</pre>
+
+    <div class="reports" id="reports"></div>
+  </details>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
 </html>
