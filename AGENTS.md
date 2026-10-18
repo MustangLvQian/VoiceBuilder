@@ -27,3 +27,8 @@
 - 改打包或发布：确认上面的格式约束仍成立，再考虑是否需要真实的 App 路径来验证
 
 **当前状态**：`docs/handoff.md`。开始工作前先读它，再读 `docs/task-log.md`
+
+**Token 记录与会话拆分（强制）**
+- 开工时把会话 ID 记在 `docs/task-log.md` 对应任务行
+- 任务结束后**新开会话**跑 `node D:\LvQian\BaseCompetence\tools\token-usage.cjs <会话ID>` 取数填入 token 消耗列
+- **做完一件事立即关闭本会话/窗口**，防止历史上下文重复计费
