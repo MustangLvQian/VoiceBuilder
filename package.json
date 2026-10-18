@@ -6,12 +6,22 @@
   "type": "module",
   "scripts": {
     "ui": "node src/server.mjs",
-    "worklists": "node src/build-listening-worklist.mjs && node src/build-recording-worklist.mjs",
+    "test": "node --test",
+    "worklists": "node src/build-listening-worklist.mjs && node src/build-recording-worklist.mjs && npm run ipa",
+    "ipa": "python src/generate-ipa.py",
     "model": "powershell -ExecutionPolicy Bypass -File src/fetch-asr-model.ps1",
     "tts": "powershell -ExecutionPolicy Bypass -File src/generate-audio.ps1",
+    "import": "python src/ingest.py",
     "check": "node src/check-recordings.mjs",
     "verify-asr": "python src/asr-verify.py",
     "pack": "powershell -ExecutionPolicy Bypass -File src/pack-miniprogram.ps1",
     "publish-pwa": "node src/publish-pwa.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4"
   }
 }
