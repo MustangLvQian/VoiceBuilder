@@ -17,6 +17,16 @@ if (!existsSync(packedManifestPath)) {
 }
 
 const manifest = JSON.parse(readFileSync(packedManifestPath, 'utf8'))
+
+// An empty manifest would blank the PWA's audio list and leave the App with no
+// playable recordings. Refuse unless the caller really means it.
+if (!manifest.length && !process.argv.includes('--allow-empty')) {
+  console.error(`打包清单是空的（${relative(process.cwd(), packedManifestPath)}），拒绝发布。`)
+  console.error('这会把 App 的 public/audio/manifest.json 清空、PWA 就没有音频了。')
+  console.error('先把录音放进 work/audio/（网页直录或 npm run ingest），或加 --allow-empty 强行发布。')
+  process.exit(1)
+}
+
 const publicAudio = app.publicAudioDir
 const lumiSource = 'LUMI-VOICE-LINES.md'
 const pwaManifest = []

@@ -13,7 +13,7 @@
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { WORK, AUDIO_DIR, loadConfig, appPaths } from './paths.mjs'
+import { WORK, AUDIO_DIR, SAMPLES_DIR, INBOX_DIR, loadConfig, appPaths } from './paths.mjs'
 
 const TARGET_RATE = 11025
 const TARGET_BITS = 16
@@ -104,21 +104,27 @@ writeFileSync(
     `- ${TARGET_RATE} Hz / ${TARGET_BITS}-bit / ${TARGET_CHANNELS === 1 ? '单声道' : TARGET_CHANNELS + ' 声道'} WAV，放进 \`work/audio/\``,
     '- 理由：小程序总包 20 MB、音频分包每个 <2 MB；高采样率会让分包超限并失败',
     '',
-    '原始录音可以先用手机或麦克风用较高音质录，再统一转换。ffmpeg 示例：',
+    '**不用自己转码，也不用装 ffmpeg**：下面第 1、2 种方式都会自动转成上面的格式。',
     '',
-    '```',
-    `ffmpeg -i in.wav -ac 1 -ar ${TARGET_RATE} -sample_fmt s16 work/audio/文件名.wav`,
-    '```',
+    '## 怎么录（三选一）',
+    '',
+    '1. **网页逐句直录（推荐）**：`npm run ui` 打开 http://127.0.0.1:5180。',
+    '   每一条先播示范音（`work/samples/`），你照着念，停止后自动转码并保存成清单里的文件名。',
+    '   快捷键：`空格` 录/停、`S` 听示范、`P` 听自己的、`←` `→` 切换、`Enter` 下一条。',
+    '2. **手机/录音笔录完批量导入**：把原始文件（m4a / mp3 / wav 都行）丢进 `work/inbox/`，',
+    '   再点网页的「导入原始录音」（或 `npm run import`）。文件名没规律也能认：',
+    '   会离线转写并与清单逐条比对，最像哪条就是哪条；**不确定的不会瞎猜**，',
+    '   留在 inbox 里并在 `work/reports/recording-ingest.md` 里列出。',
+    '3. **自己转好再放进去**：把 WAV 直接放进 `work/audio/`，文件名逐字等于清单的「文件名」列。',
     '',
     '## 录完后的步骤',
     '',
-    '1. 把全部 WAV 放进 `work/audio/`，文件名与清单一致。',
-    '2. 机械校验：网页点「机械校验」（或 `npm run check`）。',
-    '3. 内容校验（离线 ASR）：网页点「内容校验」（或 `npm run verify-asr`）。首次要先 `npm run model`。',
-    '4. 人工试听：网页的「试听」区，或 `work/audio/` 里的文件。',
-    '5. 交给 App：网页点「打包小程序分包」+「发布到 PWA」。',
+    '1. 机械校验：网页「机械校验」（或 `npm run check`）——齐全、命名、格式、静音、爆音、时长。',
+    '2. 内容校验（离线 ASR）：网页「内容校验」（或 `npm run verify-asr`）。首次要先 `npm run model`。',
+    '3. 人工试听：网页按 `P` 听，或直接听 `work/audio/` 里的文件。**ASR 只是第二意见，不是判决**。',
+    '4. 交给 App：网页「一键收尾」，或依次「打包小程序分包」+「发布到 PWA」。',
     '',
-    '> 建议对**原始高采样率录音**直接跑 ASR（准确率更高），确认无误后再转成 11 kHz。',
+    '> 打开网页里的「保存后自动做内容校验」，可以录一条确认一条。',
     '',
     '## 谁录的很重要',
     '',
@@ -126,7 +132,7 @@ writeFileSync(
     '- 家人或外包录：必须签**表演者权 + 录音制作者权**的许可/转让协议。',
     '- 只对**同一个人的声音**做降噪/响度/剪口误是安全的；**换音色/克隆声音**会落入深度合成与 AI 标识范畴，别做。',
     '',
-    '> 音频目录 `AUDIO_DIR` 当前为：`' + AUDIO_DIR.replace(/\\/g, '/') + '`',
+    '> 三个目录：成品 `' + AUDIO_DIR.replace(/\\/g, '/') + '`、示范音 `' + SAMPLES_DIR.replace(/\\/g, '/') + '`、待导入 `' + INBOX_DIR.replace(/\\/g, '/') + '`',
     '',
   ].join('\n'),
   'utf8',

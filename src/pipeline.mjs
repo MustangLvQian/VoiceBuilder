@@ -7,10 +7,11 @@ export const STEPS = [
   {
     id: 'worklists',
     label: '生成工作清单',
-    hint: '从 App 题库 + LUMI-VOICE-LINES.md 生成可录音清单',
+    hint: '从 App 题库 + LUMI-VOICE-LINES.md 生成可录音清单，并标注音标与发音提示',
     commands: [
       ['node', ['src/build-listening-worklist.mjs']],
       ['node', ['src/build-recording-worklist.mjs']],
+      ['python', ['src/generate-ipa.py']],
     ],
   },
   {
@@ -21,9 +22,15 @@ export const STEPS = [
   },
   {
     id: 'tts',
-    label: 'TTS 合成（可选）',
-    hint: '用本机 Windows 语音生成预览 WAV 与 manifest',
+    label: 'TTS 合成示范（可选）',
+    hint: '用本机 Windows 语音生成 work/samples 里的示范音',
     commands: [['powershell', ['-ExecutionPolicy', 'Bypass', '-File', 'src/generate-audio.ps1']]],
+  },
+  {
+    id: 'ingest',
+    label: '导入原始录音',
+    hint: '把 work/inbox 里手机/录音笔的文件识别成正确文件名并转码',
+    commands: [['python', ['src/ingest.py']]],
   },
   {
     id: 'check',
@@ -51,7 +58,8 @@ export const STEPS = [
   },
 ]
 
-// One-click flow: everything except TTS synthesis (real recordings preferred).
-export const FULL_PIPELINE = ['worklists', 'check', 'asr', 'pack', 'publish']
+// Finishing flow, run once every line has a recording. TTS and import are not
+// part of it: those produce work/audio entries, they are not a finalisation.
+export const FULL_PIPELINE = ['check', 'asr', 'pack', 'publish']
 
-export const REPORT_NAMES = ['recording-set-check.md', 'recording-asr-check.md']
+export const REPORT_NAMES = ['recording-set-check.md', 'recording-asr-check.md', 'recording-ingest.md']

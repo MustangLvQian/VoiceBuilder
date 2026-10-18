@@ -19,20 +19,23 @@ Setup (once per machine):
 Run:
   python src/asr-verify.py [--dir work/audio] [--list work/manifest.json]
                            [--model models/vosk-model-small-en-us-0.15]
+                           [--only id,id] [--json]
 Exit: 0 when nothing FAILs, 1 when at least one clip FAILs.
 """
 import argparse
 import json
-import re
 import sys
-import wave
-from difflib import SequenceMatcher
 from pathlib import Path
 
-try:
-    import audioop
-except ImportError:  # removed in Python 3.13
-    audioop = None
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from audio_text import (  # noqa: E402
+    format_diff,
+    load_model,
+    normalize,
+    read_wav_mono16,
+    similarity,
+    transcribe,
+)
 
 SCRIPT_PATH = Path(__file__).resolve()
 ROOT = SCRIPT_PATH.parents[1]
@@ -43,139 +46,16 @@ DEFAULT_MODEL = ROOT / "models" / "vosk-model-small-en-us-0.15"
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-NUMBER_WORDS = {
-    "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
-    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
-    "eleven": "11", "twelve": "12", "thirteen": "13", "fourteen": "14",
-    "fifteen": "15", "sixteen": "16", "seventeen": "17", "eighteen": "18",
-    "nineteen": "19", "twenty": "20", "thirty": "30", "forty": "40",
-    "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80",
-    "ninety": "90", "hundred": "100",
-}
-
-
-def normalize(text):
-    """Lower-case, drop punctuation and apostrophes, canonicalise numbers."""
-    t = text.lower().replace("\u2019", "'")
-    t = re.sub(r"[^a-z0-9'\s]", " ", t).replace("'", "")
-    return [NUMBER_WORDS.get(tok, tok) for tok in t.split()]
-
-
-_SOUNDEX = {
-    "b": "1", "f": "1", "p": "1", "v": "1",
-    "c": "2", "g": "2", "j": "2", "k": "2", "q": "2", "s": "2", "x": "2", "z": "2",
-    "d": "3", "t": "3", "l": "4", "m": "5", "n": "5", "r": "6",
-}
-
-
-def soundex(word):
-    """American Soundex, so homophones (red/read, Ben/been, colour/color) agree."""
-    if not word or not word[0].isalpha():
-        return word
-    word = word.lower()
-    out = word[0].upper()
-    prev = _SOUNDEX.get(word[0], "")
-    for ch in word[1:]:
-        code = _SOUNDEX.get(ch, "")
-        if code:
-            if code != prev:
-                out += code
-            prev = code
-        elif ch not in ("h", "w"):
-            prev = ""
-    return (out + "000")[:4]
-
-
-def stem(word):
-    """Crude suffix strip, so reads/read, checks/checked, add/added agree."""
-    for suffix in ("ing", "edly", "ed", "ly", "es", "s"):
-        if len(word) > len(suffix) + 1 and word.endswith(suffix):
-            return word[: -len(suffix)]
-    return word
-
-
-def equivalent(a, b):
-    if a == b:
-        return True
-    return stem(a) == stem(b) or soundex(a) == soundex(b)
-
-
-def word_diff(expected, got):
-    """Word-level alignment where ASR-noise variants (stems/homophones) count as equal."""
-    out = []
-    for tag, i1, i2, j1, j2 in SequenceMatcher(a=expected, b=got, autojunk=False).get_opcodes():
-        if tag == "equal":
-            out.extend(("=", w) for w in expected[i1:i2])
-        elif tag == "replace" and (i2 - i1) == (j2 - j1):
-            for a, b in zip(expected[i1:i2], got[j1:j2]):
-                out.append(("=", a) if equivalent(a, b) else ("~", f"{a}→{b}"))
-        else:
-            out.extend(("-", w) for w in expected[i1:i2])
-            out.extend(("+", w) for w in got[j1:j2])
-    return out
-
-
-def similarity(expected, got):
-    """1 - (alignment distance / length), with equivalent words costing 0."""
-    if not expected and not got:
-        return 1.0
-    if not expected or not got:
-        return 0.0
-    n, m = len(expected), len(got)
-    prev = list(range(m + 1))
-    for i in range(1, n + 1):
-        cur = [i] + [0] * m
-        for j in range(1, m + 1):
-            cost = 0 if equivalent(expected[i - 1], got[j - 1]) else 1
-            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
-        prev = cur
-    return 1 - prev[m] / max(n, m)
-
-
-def resample_to_16k(frames, sampwidth, rate):
-    if rate == 16000:
-        return frames, 16000
-    if audioop is not None:
-        return audioop.ratecv(frames, sampwidth, 1, rate, 16000, None)[0], 16000
-    import array
-    src = array.array("h")
-    src.frombytes(frames)
-    n_out = int(len(src) * 16000 / rate)
-    out = array.array("h", [0]) * n_out
-    for i in range(n_out):
-        pos = i * rate / 16000
-        i0 = int(pos)
-        frac = pos - i0
-        s0 = src[i0] if i0 < len(src) else 0
-        s1 = src[i0 + 1] if i0 + 1 < len(src) else s0
-        out[i] = int(s0 + (s1 - s0) * frac)
-    return out.tobytes(), 16000
-
-
-def read_wav_mono16(path):
-    with wave.open(str(path), "rb") as w:
-        rate = w.getframerate()
-        channels = w.getnchannels()
-        sampwidth = w.getsampwidth()
-        frames = w.readframes(w.getnframes())
-    if sampwidth != 2:
-        if audioop is None:
-            raise ValueError(f"unsupported sample width {sampwidth * 8}-bit without audioop")
-        frames = audioop.lin2lin(frames, sampwidth, 2)
-        sampwidth = 2
-    if channels != 1:
-        if audioop is None:
-            raise ValueError("stereo input needs audioop")
-        frames = audioop.tomono(frames, sampwidth, 0.5, 0.5)
-    return resample_to_16k(frames, sampwidth, rate)
-
 
 def main():
     ap = argparse.ArgumentParser(description="Offline ASR check of the recording set.")
     ap.add_argument("--dir", default=str(AUDIO_DIR))
     ap.add_argument("--list", default="")
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
-    ap.add_argument("--report", action="store_true")
+    ap.add_argument("--only", default="", help="comma-separated ids to check")
+    ap.add_argument("--json", action="store_true", help="print a JSON result to stdout")
+    ap.add_argument("--no-report", action="store_true",
+                    help="do not write the markdown report (used for one-clip re-checks)")
     ap.add_argument("--pass-threshold", type=float, default=0.90)
     ap.add_argument("--review-threshold", type=float, default=0.70)
     args = ap.parse_args()
@@ -192,26 +72,26 @@ def main():
         list_path = manifest if manifest.exists() else WORK / "recording-worklist.json"
 
     if not list_path.exists():
-        print(f"Expected list not found: {list_path}")
+        print(f"Expected list not found: {list_path}", file=sys.stderr)
         return 1
     expected = json.loads(list_path.read_text(encoding="utf-8-sig"))
+
+    only = {i.strip() for i in args.only.split(",") if i.strip()}
+    if only:
+        expected = [item for item in expected if item.get("id") in only]
 
     model_path = Path(args.model)
     if not model_path.is_absolute():
         model_path = ROOT / args.model
     if not (model_path / "am").exists():
-        print(f"ASR model not found: {model_path}")
-        print("Run: pip install vosk   then   npm run model")
+        print(f"ASR model not found: {model_path}", file=sys.stderr)
+        print("Run: pip install vosk   then   npm run model", file=sys.stderr)
         return 1
 
-    try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel
-    except ImportError:
-        print("vosk is not installed. Run: pip install vosk")
+    model = load_model(model_path)
+    if model is None:
+        print("vosk is not installed. Run: pip install vosk", file=sys.stderr)
         return 1
-
-    SetLogLevel(-1)
-    model = Model(str(model_path))
 
     rows = []
     fails = reviews = oks = skipped = 0
@@ -231,9 +111,7 @@ def main():
                          "sim": None, "expected": item.get("text", ""), "got": "", "diff": f"无法读取：{e}"})
             continue
 
-        rec = KaldiRecognizer(model, rate)
-        rec.AcceptWaveform(frames)
-        got_text = json.loads(rec.FinalResult()).get("text", "")
+        got_text = transcribe(model, frames, rate)
 
         exp_tokens = normalize(item.get("text", ""))
         got_tokens = normalize(got_text)
@@ -246,15 +124,18 @@ def main():
         else:
             status = "FAIL"; fails += 1
 
-        diff = ""
-        if status != "PASS":
-            glyph = {"=": lambda w: w, "-": lambda w: "−" + w, "+": lambda w: "+" + w,
-                     "~": lambda w: f"({w})"}
-            diff = " ".join(glyph[t](w) for t, w in word_diff(exp_tokens, got_tokens))
+        diff = "" if status == "PASS" else format_diff(exp_tokens, got_tokens)
         rows.append({"file": file, "id": item.get("id", ""), "status": status,
                      "sim": sim, "expected": item.get("text", ""), "got": got_text, "diff": diff})
 
     total = len(expected)
+    if args.json:
+        print(json.dumps({
+            "total": total, "pass": oks, "review": reviews, "fail": fails, "skip": skipped,
+            "rows": rows,
+        }, ensure_ascii=False))
+        return 1 if fails else 0
+
     print(f"ASR check: {total} expected clips in {directory.name}")
     print(f"  PASS: {oks}, REVIEW: {reviews}, FAIL: {fails}, SKIP: {skipped}")
     for r in rows:
@@ -299,9 +180,11 @@ def main():
         got = str(r["got"]).replace("|", "\\|")
         lines.append(f"| `{r['file']}` | {r['status']} | {sim} | {exp} | {got} |")
     lines.append("")
-    report_path = REPORTS_DIR / "recording-asr-check.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"Report: {report_path.relative_to(ROOT).as_posix()}")
+
+    if not args.no_report:
+        report_path = REPORTS_DIR / "recording-asr-check.md"
+        report_path.write_text("\n".join(lines), encoding="utf-8")
+        print(f"Report: {report_path.relative_to(ROOT).as_posix()}")
 
     return 1 if fails else 0
 
