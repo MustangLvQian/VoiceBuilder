@@ -17,6 +17,8 @@ ID 用 `T-YYYYMMDD-序号`。每条一行，结果要可核对（commit、文件
 
 | ID | 任务 | 状态 | 日期 | 结果 / 产物 | commit | token 消耗 |
 |---|---|---|---|---|---|---|
+| T-20261018-01 | word-grid 音标加 `[]`；修正重音位置与非重读元音；`generate-ipa.py` 接入流水线 | done | 2026-10-18 | `web/app.js`、`src/generate-ipa.py`、`package.json`、`src/pipeline.mjs`；`npm test` 13 过、`npm run worklists` 89 条 | `d600399` `b4688af` | 未知 |
+| T-20261018-02 | 存量未提交改动按功能拆 6 次提交 | done | 2026-10-18 | 工作区干净，仅剩未跟踪 `add_word_ipa.py` | `345d774`…`a166abe` | 未知 |
 
 ## 规则
 
