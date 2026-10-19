@@ -9,7 +9,7 @@ App 不再自带音频脚本，也不再有 `audio-preview/`。它只**消费**�
 ## 它做什么
 
 ```
-生成工作清单 → (TTS 出示范音 | 真人逐句录音 / 批量导入) → 机械校验 + ASR 内容校验 → 打包交给 App
+生成工作清单 → (TTS 出示范音 | 真人逐句录音 / 批量导入) → 音频后处理 → 机械校验 + ASR 内容校验 → 打包交给 App
 ```
 
 - **工作清单**：从 App 的题库（`wechat-miniprogram/content/question-banks/*.json` +
@@ -23,6 +23,10 @@ App 不再自带音频脚本，也不再有 `audio-preview/`。它只**消费**�
 - **文档专题录音**：上传一份英文文档（PDF / docx / txt / md），自动提正文、按句切分、
   生成音标与 TTS 示范音，然后像 App 清单一样逐句录。**只做独立练习，不进 App**：
   专题数据全在 `work/docs/<slug>/`，`pack` / `publish` 永远不会碰它。
+- **音频后处理**：一键对 `work/audio/` 全量逐条处理——
+  1. **谱减法降噪**（noisereduce，去底噪/风扇声/空调声）
+  2. **EBU R128 响度归一化**（-23 LUFS，统一音量，避免忽大忽小）
+  > ⚠️ RVC 美式口音转换已移除（fairseq GPL 授权风险、模型权重不明）。如需标准美式发音，请用「TTS 合成示范音」（Kokoro）或「Whisper + Kokoro 重合成」方案。
 - **机械校验**：文件是否齐全、命名、采样率/声道/位深、静音、爆音、时长异常。
 - **内容校验（ASR）**：Vosk 离线英文模型把每条录音转成文字，与台词逐词比对，
   输出 PASS / REVIEW / FAIL。这是"念错没念错"的自动检查。
@@ -33,7 +37,7 @@ App 不再自带音频脚本，也不再有 `audio-preview/`。它只**消费**�
 ```powershell
 # 一次性
 copy voicebuilder.config.example.json voicebuilder.config.json   # 改成你的 App 路径
-pip install vosk av pronouncing python-docx pypdf
+pip install vosk av pronouncing python-docx pypdf kokoro-onnx misaki[en]
 npm run model        # 下载离线 ASR 模型（~41 MB，可断点续传）
 npm run ui           # 打开 http://127.0.0.1:5180
 ```
@@ -43,12 +47,23 @@ npm run ui           # 打开 http://127.0.0.1:5180
 - `空格` 开始/停止录音，停录后自动保存成正确文件名（可关掉「自动保存」先试听）
 - `S` 听示范音，`P` 听自己刚录的，`←` `→` 切换，`Enter` 下一条
 - 想边录边确认，打开「保存后自动做内容校验」，每条给出 PASS / REVIEW / FAIL
+- `Shift+P` 处理并试听当前录音（降噪 + 统一音量）
 
 全部录完后点「一键收尾」（校验 → 打包 → 发布）。详见 `work/RECORDING-GUIDE.md`
 （首次点「生成工作清单」后会生成）。
 
 用手机或录音笔录的，把文件丢进 `work/inbox/` 再点「导入原始录音」即可，
 不需要装 ffmpeg。
+
+### 示范音生成（Kokoro TTS，商用安全）
+
+```powershell
+# 生成工作清单后，运行 TTS 生成示范音（自然美式发音，Apache-2.0 许可）
+npm run tts
+# 或指定音色：python src/tts-kokoro.py --worklist work/manifest.json --output work/samples --voice af_heart
+```
+
+可用美式音色：`af_heart`(默认,女)、`af_bella`(女)、`af_nicole`(女)、`af_sarah`(女)、`am_michael`(男)、`am_adam`(男)、`am_fenrir`(男)、`am_echo`(男)
 
 ### 文档专题（独立练习，不进 App）
 
@@ -69,8 +84,10 @@ npm run ui           # 打开 http://127.0.0.1:5180
 | `npm run worklists` | 生成 listening / recording 工作清单，并标注音标与发音提示 |
 | `npm run ipa` | 只给录音清单补音标与发音提示（需 `pronouncing`） |
 | `npm run model` | 下载 ASR 模型（每台机器一次） |
-| `npm run tts` | 用 Windows SAPI 生成 `work/samples/` 里的示范音 |
+| `npm run rvc-model` | ⚠️ 已弃用：下载 RVC 模型（授权风险，不推荐用于生产） |
+| `npm run tts` | **用 Kokoro-82M (Apache-2.0) 生成 `work/samples/` 示范音，自然美式发音** |
 | `npm run import` | 把 `work/inbox/` 的原始录音识别、转码、归位 |
+| `npm run process-audio` | **音频后处理：降噪 + 统一音量（已移除 RVC 美式口音转换）** |
 | `npm run check` | 机械校验（写 `work/reports/recording-set-check.md`） |
 | `npm run verify-asr` | ASR 内容校验（写 `work/reports/recording-asr-check.md`） |
 | `npm run pack` | 打包进 App 的小程序分包 |
@@ -84,8 +101,9 @@ src/                       清单生成、导入、校验、TTS、打包、发�
   audio_text.py            文本比对与音频解码的共享实现（asr-verify 与 ingest 共用）
   doc-to-worklist.py       文档（PDF/docx/txt/md）→ 分句 → 专题 worklist.json
   generate-ipa.py          用 CMU 词典生成逐词 IPA 与发音提示，写回录音清单
+  tts-kokoro.py            **Kokoro TTS 合成示范音（商用安全，Apache-2.0，自然美式发音）**
   topics.mjs               专题目录解析（App 清单 / work/docs/<slug>）
-  tts-worklist.ps1         给任意 worklist 合成 11 kHz TTS 示范音
+  tts-worklist.ps1         兼容层：给任意 worklist 合成 11 kHz TTS 示范音（内部调用 tts-kokoro.py）
 web/                       本地网页界面
   index.html               录音工作站（含清单切换与文档上传）
   app.js                   录音、导航、保存、清单切换、收尾按钮
@@ -95,7 +113,7 @@ test/                      node --test + Python 断言用例
 work/                      工作区（gitignore）
   audio/                   成品录音 WAV（App 真正拿到的东西）
   docs/<slug>/             文档专题：原文、worklist、samples/、audio/（不进 App）
-  samples/                 示范音，录音时播放（TTS 生成）
+  samples/                 示范音，录音时播放（Kokoro TTS 生成）
   inbox/                   手机/录音笔的原始文件，等待 import
   manifest.json            期望音频清单
   listening-worklist.json  听力清单

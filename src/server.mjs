@@ -331,10 +331,12 @@ async function createTopic(req, res, url) {
     if (ipa !== 0) res.write('[音标生成失败，不影响录音；确认已 pip install pronouncing]\n')
 
     // 3. Sample WAVs (also nice to have: the narrator can record without them).
-    res.write('\n===== 合成示范音（Windows TTS）=====\n')
-    const tts = await spawnStream('powershell', [
-      '-ExecutionPolicy', 'Bypass', '-File', 'src/tts-worklist.ps1',
-      '-Worklist', topic.worklist, '-OutputDirectory', topic.samples,
+    res.write('\n===== 合成示范音（Kokoro TTS，商用安全）=====\n')
+    const tts = await spawnStream('python', [
+      'src/tts-kokoro.py',
+      '--worklist', topic.worklist,
+      '--output', topic.samples,
+      '--voice', 'af_heart'
     ], res)
     if (tts !== 0) res.write('[示范音合成失败，仍可录音，只是没有示范音]\n')
 
@@ -405,7 +407,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, config)
     }
     if (req.method === 'GET' && path === '/api/steps') {
-      const steps = STEPS.filter((s) => ['check', 'asr', 'pack', 'publish'].includes(s.id))
+      const steps = STEPS.filter((s) => ['process-audio', 'check', 'asr', 'pack', 'publish'].includes(s.id))
         .map(({ id, label, hint }) => ({ id, label, hint }))
       return sendJson(res, 200, steps)
     }
@@ -487,6 +489,31 @@ const server = http.createServer(async (req, res) => {
       const parsed = JSON.parse(line)
       const row = (parsed.rows || [])[0] || null
       return sendJson(res, 200, { ok: true, clipId: id, status: row ? row.status : 'SKIP', sim: row ? row.sim : null, got: row ? row.got : '', diff: row ? row.diff : '' })
+    }
+
+    // ---- one-clip audio post-processing -----------------------------------------
+    if (req.method === 'POST' && path.startsWith('/api/process-clip/')) {
+      const id = decodeURIComponent(path.slice('/api/process-clip/'.length))
+      const topic = resolveTopic(url.searchParams.get('topic') || '')
+      if (!topic) return sendJson(res, 404, { ok: false, error: `没有这个专题` })
+      const clip = findClip(id, topic)
+      if (!clip) return sendJson(res, 404, { ok: false, error: `清单里没有 “${id}”` })
+      if (!existsSync(join(topic.audio, clip.file))) {
+        return sendJson(res, 400, { ok: false, error: '还没有录音' })
+      }
+      // Parse optional args from query string (RVC removed; only backup remains)
+      const backup = url.searchParams.has('backup')
+      const args = ['src/process-audio.py', '--dir', topic.audio, '--list', topic.worklist, '--file', clip.file, '--json']
+      if (backup) args.push('--backup')
+      const { code, out, err } = await runCapture('python', args)
+      const line = out.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('{')).pop()
+      if (!line) {
+        return sendJson(res, 500, { ok: false, error: err.trim() || out.trim() || '音频处理未返回结果', code, output: out })
+      }
+      const parsed = JSON.parse(line)
+      // Find the result for our file
+      const detail = (parsed.details || []).find((d) => d.file === clip.file) || {}
+      return sendJson(res, 200, { ok: true, clipId: id, file: clip.file, status: detail.status || 'ok', error: detail.error || null, output: out })
     }
 
     // ---- document topics ---------------------------------------------------------

@@ -37,6 +37,18 @@ const estimateSeconds = (words) => ({
 
 const items = []
 
+// System prompts (from App's audio-production/REFERENCE-LINES.md)
+// These are feedback sounds played by the App (PWA + Mini Program)
+const systemPrompts = [
+  { id: 'excellent', group: '系统提示音', source: 'system-prompts', day: null, text: 'Excellent!' },
+  { id: 'bingo', group: '系统提示音', source: 'system-prompts', day: null, text: 'Bingo!' },
+  { id: 'good-try', group: '系统提示音', source: 'system-prompts', day: null, text: "Good try! Let's try again." },
+  { id: 'thank-you-practicing', group: '系统提示音', source: 'system-prompts', day: null, text: 'Thank you for practicing with me today!' },
+]
+for (const sp of systemPrompts) {
+  items.push(sp)
+}
+
 const lumiText = readFileSync(LUMI_FILE, 'utf8')
 const lumiRow = /^\|\s*`([^`]+)`\s*\|\s*(.+?)\s*\|.*$/gm
 let m

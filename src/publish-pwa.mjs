@@ -29,11 +29,18 @@ if (!manifest.length && !process.argv.includes('--allow-empty')) {
 
 const publicAudio = app.publicAudioDir
 const lumiSource = 'LUMI-VOICE-LINES.md'
+const systemPromptSource = 'system-prompts'
 const pwaManifest = []
 
 for (const entry of manifest) {
-  const isLumi = entry.source === lumiSource
-  const folder = isLumi ? 'lumi' : 'listening'
+  let folder
+  if (entry.source === lumiSource) {
+    folder = 'lumi'
+  } else if (entry.source === systemPromptSource) {
+    folder = 'system-prompts'
+  } else {
+    folder = 'listening'
+  }
   const destinationDir = join(publicAudio, folder)
   mkdirSync(destinationDir, { recursive: true })
 
@@ -44,8 +51,6 @@ for (const entry of manifest) {
   pwaManifest.push({
     id: entry.id,
     file: entry.file,
-    // The PWA resolves a recording from bank id plus stimulus text, so keep the
-    // same fields the mini program manifest uses.
     source: entry.source,
     day: entry.day,
     text: entry.text,

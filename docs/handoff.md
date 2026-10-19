@@ -1,92 +1,68 @@
 # 交接手册
 
 > 每次会话结束前（或对话变长时）更新本文件。新会话第一件事就是读它。
-> 只写**现在的状态和下一步**，历史细节放 `docs/task-log.md`.
+> 只写**现在的状态和下一步**，历史细节放 `docs/task-log.md`。
 
 ⚠️ **任务结束时必须关闭本会话/窗口。** 旧会话历史每次交互都重复计费，跨会话上下文靠 `docs/handoff.md` 传递，不靠留着旧会话。
+⚠️ **下一个 Agent 必须：更新本 handoff.md → 提醒用户关闭窗口。** 这是强制规则，见 `AGENTS.base.md` 与 `docs/handoff-base-competence.md`。
 
 **最后更新：** 2026-10-18　**机器：** 公司电脑　**分支：** main（最新提交 `24024c8`，领先 `origin/main` 8 个提交，未推送）
 
----
+## 当前状态
 
-## 文档专题录音：已实现并验证（T-20261018-03）
+- ✅ 依赖已安装：`npm install`、`pip install noisereduce pydub scipy numpy soundfile pyloudnorm resampy`、`pip install torch torchaudio`、`pip install kokoro-onnx misaki[en]`
+- ✅ 测试全绿：`npm test` — JS 21 项 + Python 15 项全部通过
+- ✅ 服务已重启：`npm run ui` 运行在 `http://127.0.0.1:5180`（后台 shell ID: sh_14e4894de001gnDMFzTe5K7O92，**新进程，含最新修复**）
+- ✅ 浏览器可打开：用户可直接测试录音工作站
+- ✅ **RVC 美式口音转换已移除**（授权风险：fairseq GPL、模型权重不明），`process-audio.py` 仅保留降噪 + 响度归一化
+- ✅ **新增 Kokoro TTS 示范音生成**（`src/tts-kokoro.py`，Apache-2.0，商用安全，自然美式发音，8 种音色可选）
+- ✅ `npm run tts` / `pipeline.mjs` / 文档专题上传均已切换到 Kokoro TTS
+- ✅ 新增单条音频处理并试听功能：处理音频（降噪+统一音量） → 播放处理后的录音，快捷键 Shift+P
+- ✅ **修复音频缓存问题**：处理后播放、点击「播放我的录音」、按 P 键试听均加 cache-busting
+- ✅ **修复音频处理 "not found" 报错**：`process-audio.py` 正确处理服务端传入的绝对路径；`/api/process-clip/` 单条处理接口正常工作
+- ✅ **新增系统提示音到录音清单**：`excellent.wav`、`bingo.wav`、`good-try.wav`、`thank-you-practicing.wav`（App 反馈音效，需真人录制为 11kHz/16bit/mono WAV）
+- ✅ **已生成全部 93 条示范音（Windows SAPI，11kHz/16bit/mono WAV）**：`src/generate-audio-sapi.ps1` → `work/samples/`
+- ✅ **已打包交付给 Yingchuang 项目**：
+  - 小程序分包：8 个 subpackage（每个 <2MB），`wechat-miniprogram/subpackages/audio-preview-01..08/`
+  - 小程序清单：`wechat-miniprogram/content/audio-preview-manifest.json` (+ `.json.js`)
+  - PWA 发布：`public/audio/{listening|lumi|system-prompts}/` + `public/audio/manifest.json`
+  - 系统提示音 4 条已按 App 期望路径放入 `public/audio/system-prompts/*.wav`
+- 已完成但未推送：新增 `src/tts-kokoro.py`、`src/process-audio.py`（已移除 RVC）、`src/fetch-rvc-model.ps1`（已标记弃用）、`src/generate-audio-sapi.ps1`，修改 `pipeline.mjs`、`server.mjs`、`generate-audio.ps1`、`tts-worklist.ps1`、`build-recording-worklist.mjs`、`publish-pwa.mjs`、`README.md`、`docs/handoff.md`、`web/app.js`
 
-上传英文文档（PDF / docx / txt / md）→ 自动分句 → 生成音标与 TTS 示范音 → 网页里切换到该专题逐句录音。**独立练习，不进 App。**
+## 下一步（按顺序）
 
-### 交付的代码
+1. 用户在浏览器验证功能无误（**需刷新页面以连接新服务进程**）后，提交：代码、README、handoff、task-log 分功能/文档/配置三块提交
+2. 用户确认推送：本仓库声明开源（MIT），专题功能不含题库内容，可安全推送
+3. **Yingchuang 项目需更新 App 代码**：`src/App.tsx` 的 `SYSTEM_PROMPT_AUDIO` 与 `public/sw.js` 预缓存路径，将 `.mp3` 改为 `.wav`（或同时保留两套）
+4. 在录音工作站录制 4 条系统提示音真人版（Excellent!、Bingo!、Good try! Let's try again.、Thank you for practicing with me today!），它们现在排在清单最前面
+5. 继续录制其余 83 条缺失音频（`npm run check -- --list work/recording-worklist.json` 可查看完整缺失列表）
+6. 验证 `npm run tts` 生成的示范音质量（自然度、美式发音准确性）——系统提示音的示范音待网络恢复后补齐
+7. （可选）如需 Whisper + Kokoro 重合成管线（ASR 转写 → TTS 重合成），另开会话实施
 
-| 文件 | 作用 |
-|---|---|
-| `src/doc-to-worklist.py` | 文档 → 归一化空白 → 英文分句 → `work/docs/<slug>/worklist.json` |
-| `src/tts-worklist.ps1` | 给**任意** worklist 合成 11 kHz/16-bit/mono 示范音（SAPI） |
-| `src/topics.mjs` | 专题目录解析与路径穿越防护（`TOPIC_SLUG` 正则） |
-| `src/server.mjs` | `POST /api/docs`（上传→解析→音标→TTS）、`GET /api/topics`、`/api/clips?session=`、`/samples?topic=`、`/recordings?topic=` 及录音写入按专题路由 |
-| `web/index.html` / `web/app.js` | 「清单」下拉切换 App 题库 / 各专题 + 文档上传区 |
-| `test/doc-to-worklist.test.py` | 分句断言 15 项 |
-| `test/doc-topics.test.js` | 专题隔离 + 路径穿越 5 项 |
-| `test/ps-scripts.test.js` | PS 脚本守卫（BOM、参数/变量撞名）3 项 |
+## 未决问题 / 需要人确认
 
-### 目录布局
+- `capacitor.config.json` 的 appId 含个人标识，安卓包名发布后难改
+- `AGENTS.base.md` 与 `docs/` 已入库（含个人路径 `D:\LvQian\BaseCompetence`），若日后转公开需重新评估
+- `add_word_ipa.py` 未跟踪（用户决定暂不管）
+- `.gitignore` 注释提到 `npm run mobile` 但 `package.json` 无此脚本
 
-`work/docs/<slug>/{doc.<ext>, worklist.json, manifest.json, samples/, audio/}`。专题录音**只**写 `audio/`，打包/发布只读 `work/audio/`，互不相扰（守卫 `test/doc-topics.test.js`）。
+## 本次不要做的事
 
-### 已验证（2026-10-18）
+- 不要用 `--no-verify` 绕过守卫
+- 不要强制推送 main
+- 不要把个人路径/题库/录音成品提交进仓库
+- 不要恢复 RVC 相关代码（授权风险未解决）
 
-- `npm test`：JS 21 项 + Python 15 项，全过
-- 服务端到端：`POST /api/docs?name=test-article.txt` → 12 句 / 171 词；音标 12 条；TTS 12 个 WAV 全部 11025/16/mono；`PUT /api/recordings/doc-test-article-0001?topic=test-article` 落到 `work/docs/test-article/audio/`，`DELETE` 正常
-- Playwright（msedge headless）：切到专题 → 12 条、逐词音标渲染、`→` 翻到第 2 条、切回 App 清单 89 条，**0 JS 报错**
+## 换机器 / 新会话的启动步骤
 
-### 本次踩的坑（已登记 `docs/pitfalls.md`）
-
-- WF-01：`.ps1` 含中文必须 **UTF-8 with BOM**，PS 5.1 对无 BOM 文件按 CP936 解码会静默破坏
-- WF-02：PS 变量名大小写不敏感，局部 `$worklist` 与参数 `$Worklist` 撞名，赋值拿到未解析字符串
-- DOM-01：专题数据必须与 App 的 `work/audio`、`work/samples` 隔离
-
-### 下一步
-
-1. 提交（本文件、`task-log`、README、pitfalls、代码与测试分成功能/文档/配置三块提交）
-2. 推送前需用户确认：本仓库声明开源（MIT），专题功能本身不含题库内容，可安全推送
-
----
-
-## 当前状态（上一轮已完成）
-
-- 音标（word-grid）已完成：每个词上方显示 `[ˈnoʊtəs]` 这种**方括号**音标（IPA 在上、单词在下，标点独立格）
-- `src/generate-ipa.py` 修正音标质量：重音标在**音节开头**（`ˈnoʊtɪs`，不再 `nˈoʊtɪs`），非重读 `AH`/`ER` → `ə`/`ɚ`
-- `generate-ipa.py` 已**接进流水线**：`npm run ipa`；`npm run worklists` 末尾自动跑；网页「生成工作清单」也会跑（`src/pipeline.mjs`）
-- 之前积压的未提交改动已整理成 8 个提交（见下），工作区干净（只剩未跟踪 `add_word_ipa.py`）
-- 验证：`npm test` 13 项通过；`npm run worklists` 全链通过（89 条）；Playwright(msedge) 确认渲染与无 JS 错误
-
-### 本次提交（main，未推送）
-
-| commit | 内容 |
-|---|---|
-| `345d774` | chore：Capacitor 依赖 + 忽略规则 |
-| `d600399` | feat(web)：网页逐句录音工作站（含逐词音标） |
-| `37cb9ad` | feat(import)：批量导入原始录音 + 共享校验工具 |
-| `0ebbb26` | feat(mobile)：离线 Capacitor 录音 App |
-| `b4688af` | feat(ipa)：CMU 词典生成音标与发音提示 |
-| `a166abe` | docs：README 重写 + agent 规则 + 工作流记录 |
-| `e0a2f87` | docs：更新交接与任务日志 |
-| `24024c8` | fix(web)：恢复 App 路径占位符（用户要求） |
-
----
-
-## 未决问题 / 需要人确认（历史遗留）
-
-- `capacitor.config.json` 的 appId `com.mustanglvqian.voicebuilder` 含个人标识，安卓包名发布后难改
-- 按用户要求，`AGENTS.base.md` 与 `docs/` 已入库（含个人路径 `D:\LvQian\BaseCompetence`）。本仓库声明为开源（MIT），若日后要转公开需重新评估
-- `add_word_ipa.py`（仓库根，与 `src/generate-ipa.py` 重叠的一次性脚本）用户决定暂不管，仍未跟踪
-- `.gitignore` 注释提到 `npm run mobile` / `npm run mobile:setup`，但 `package.json` 没有这两个脚本
-- 观察：约 10:25 有一次同步动作同时写了 `VoiceBuilder\AGENTS.base.md` 与 `YingChuangXingQiu\AGENTS.base.md`、`docs\handoff-base-competence.md`（非本会话所为），疑似 BaseCompetence 的文件监听/钩子
-
-## 工作区文件（gitignore，不要提交）
-
-`voicebuilder.config.json`、`work/`、`models/`
-
-## 环境备注
-
-- 本机 5180 上可能跑着一个 `node src/server.mjs`；**改 server 后要重启它**（本次验证用的就是新起的实例）
-- 本机已装 `pronouncing`、`python-docx`、`nltk`、`markdown`、`pypdf`（文档专题需要）
-- 换机器：`pip install vosk av pronouncing python-docx pypdf`
-- Playwright 用系统 Edge（`channel="msedge"`），不要 `playwright install chromium`
+```powershell
+git pull --rebase
+npm install
+# 然后读 docs/task-log.md 确认哪些任务已 done
+# 音频后处理依赖：
+pip install noisereduce pydub scipy numpy soundfile pyloudnorm resampy
+# TTS 示范音生成（Kokoro，商用安全）：
+pip install kokoro-onnx misaki[en]
+# ASR 模型：
+npm run model
+```

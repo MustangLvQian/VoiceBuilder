@@ -73,6 +73,27 @@ for (const stage of A.ASSESSMENT_STAGES) {
   }
 }
 
+// Vocabulary banks (word-building + primary math vocabulary) for Bubble Star
+// spelling practice.
+const vocabularyBanks = [
+  'grade5-word-building.json',
+  'primary-math-vocabulary.json',
+]
+for (const file of vocabularyBanks) {
+  const bank = JSON.parse(readFileSync(join(app.banksDir, file), 'utf8'))
+  for (const item of bank.items) {
+    items.push({
+      id: `${bank.id}--${item.id}`,
+      source: bank.id,
+      grade: item.minGrade ?? null,
+      day: null,
+      text: item.word,
+      stimulus: item.word,
+      usedSpokenText: false,
+    })
+  }
+}
+
 const safe = (id) => id.replace(/[^A-Za-z0-9._-]/g, '-')
 const seen = new Set()
 for (const item of items) {

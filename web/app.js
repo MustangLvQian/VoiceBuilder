@@ -77,6 +77,8 @@ function render() {
     $('btn-sample').disabled = true
     $('btn-mine').disabled = true
     $('btn-rec').disabled = true
+    $('btn-delete').disabled = true
+    updateTakeButtons()
     return
   }
 
@@ -142,11 +144,13 @@ function render() {
   // While a take is in flight, playback would leak into the recording.
   const recording = Boolean(state.recorder && state.recorder.recording)
   $('btn-sample').disabled = !clip.hasSample || recording
-  $('btn-mine').disabled = !clip.hasRecording || recording
+  $('btn-mine').disabled = !(clip.hasRecording || state.taking) || recording
+  $('btn-process-clip').disabled = !clip.hasRecording || recording
   $('btn-rec').disabled = state.busy
   $('btn-delete').disabled = !clip.hasRecording
   $('btn-prev').disabled = navTarget(-1) === null
   $('btn-next').disabled = navTarget(1) === null
+  updateTakeButtons()
 }
 
 function navTarget(direction) {
@@ -183,11 +187,24 @@ function stopPlayback() {
   player.currentTime = 0
 }
 
-function play(url) {
+function play(url, bustCache = false) {
   if (!url) return
   stopPlayback()
+  const finalUrl = bustCache && url
+    ? url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
+    : url
+  player.src = finalUrl
+  player.play().catch((e) => setStatus('bad', { title: '播放失败', detail: String(e.message || e) }))
+}
+
+function playPendingTake() {
+  if (!state.taking) return
+  stopPlayback()
+  const url = URL.createObjectURL(new Blob([state.taking.wav], { type: 'audio/wav' }))
   player.src = url
   player.play().catch((e) => setStatus('bad', { title: '播放失败', detail: String(e.message || e) }))
+  // Clean up object URL after playback
+  player.onended = () => URL.revokeObjectURL(url)
 }
 
 // ------------------------------------------------------------------ recording
@@ -295,12 +312,33 @@ async function stopRecord() {
   }
 }
 
+function discardTake() {
+  if (!state.taking) return
+  state.taking = null
+  stopPlayback()
+  clearStatus()
+  finishRecordButton()
+  setStatus('warn', { title: '已丢弃', detail: '可以重新录音。' })
+}
+
 function finishRecordButton() {
   $('btn-rec').classList.remove('on')
   $('rec-label').textContent = '开始录音'
   $('btn-rec').disabled = false
   $('btn-sample').disabled = !current()?.hasSample
-  $('btn-mine').disabled = !current()?.hasRecording
+  $('btn-mine').disabled = !(current()?.hasRecording || state.taking)
+  $('btn-process-clip').disabled = !current()?.hasRecording
+  updateTakeButtons()
+}
+
+function updateTakeButtons() {
+  const saveBtn = $('btn-save-take')
+  const discardBtn = $('btn-discard')
+  const clip = current()
+  const recording = Boolean(state.recorder && state.recorder.recording)
+  const showTakeButtons = state.taking && !$('auto-save').checked && !recording && clip && !clip.hasRecording
+  saveBtn.classList.toggle('hidden', !showTakeButtons)
+  discardBtn.classList.toggle('hidden', !showTakeButtons)
 }
 
 function describeTake(result, saved) {
@@ -364,6 +402,66 @@ async function verify(id) {
   setStatus(kind, {
     title: `${body.status}　${percent}`,
     detail: `${verdict}${body.got ? `<div class="diff">识别：${escapeHtml(body.got)}</div>` : ''}${body.diff ? `<div class="diff">${renderDiff(body.diff)}</div>` : ''}`,
+  })
+}
+
+async function processCurrentClip() {
+  const clip = current()
+  if (!clip) return
+  if (!clip.hasRecording) {
+    setStatus('warn', { title: '还没有录音', detail: '请先录音，再处理。' })
+    return
+  }
+  if (!clip.hasSample) {
+    setStatus('warn', { title: '没有示范音', detail: '建议先有示范音，处理后再对比。' })
+  }
+
+  // Disable buttons during processing
+  $('btn-process-clip').disabled = true
+  $('btn-sample').disabled = true
+  $('btn-mine').disabled = true
+  $('btn-rec').disabled = true
+
+  try {
+    // 1. Process audio (noise reduction + loudness normalization)
+    // RVC 美式口音转换已移除（授权风险）。如需美式发音，请用 Kokoro TTS 重合成。
+    setStatus('warn', { title: '处理音频中…', detail: '降噪 + 统一音量（-23 LUFS）' })
+    const query = topicQuery()
+    const { ok, body } = await api(`/api/process-clip/${encodeURIComponent(clip.id)}${query ? query + '&' : '?'}`, {
+      method: 'POST'
+    })
+    if (!ok) {
+      setStatus('bad', { title: '音频处理失败', detail: body.error || JSON.stringify(body) })
+      return
+    }
+    if (body.status === 'error') {
+      setStatus('bad', { title: '音频处理出错', detail: body.error || '未知错误' })
+      return
+    }
+
+    // 2. Play processed recording (bust cache since file was overwritten in place)
+    setStatus('good', { title: '处理完成', detail: '播放处理后的录音…' })
+    const cacheBustedUrl = clip.recordingUrl + (clip.recordingUrl.includes('?') ? '&' : '?') + 't=' + Date.now()
+    await playAndWait(cacheBustedUrl)
+    setStatus('good', { title: '处理并试听完成', detail: '可点「播放示范」或「播放我的录音」再次对比。' })
+  } catch (err) {
+    setStatus('bad', { title: '处理异常', detail: String(err.message || err) })
+  } finally {
+    $('btn-process-clip').disabled = false
+    $('btn-sample').disabled = !clip.hasSample
+    $('btn-mine').disabled = !clip.hasRecording
+    $('btn-rec').disabled = state.busy
+    render()
+  }
+}
+
+function playAndWait(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) return reject(new Error('No URL'))
+    player.onended = () => { player.onended = null; player.onerror = null; resolve() }
+    player.onerror = (e) => { player.onended = null; player.onerror = null; reject(new Error('Playback failed')) }
+    player.src = url
+    player.play().catch((e) => { player.onended = null; player.onerror = null; reject(e) })
   })
 }
 
@@ -586,7 +684,11 @@ async function buildStepButtons() {
 
 $('btn-rec').addEventListener('click', toggleRecord)
 $('btn-sample').addEventListener('click', () => play(current()?.sampleUrl))
-$('btn-mine').addEventListener('click', () => play(current()?.recordingUrl))
+$('btn-mine').addEventListener('click', () => {
+  if (state.taking) playPendingTake()
+  else play(current()?.recordingUrl, true)
+})
+$('btn-process-clip').addEventListener('click', processCurrentClip)
 $('btn-prev').addEventListener('click', () => go(-1))
 $('btn-next').addEventListener('click', () => go(1))
 $('btn-first-unrecorded').addEventListener('click', selectFirstUnrecorded)
@@ -601,6 +703,8 @@ $('btn-delete').addEventListener('click', async () => {
   clearStatus()
   render()
 })
+$('btn-save-take').addEventListener('click', saveTake)
+$('btn-discard').addEventListener('click', discardTake)
 $('only-unrecorded').addEventListener('change', () => {
   const list = visible()
   if (!list.some((c) => c.id === state.currentId)) {
@@ -610,7 +714,7 @@ $('only-unrecorded').addEventListener('change', () => {
     render()
   }
 })
-$('auto-save').addEventListener('change', () => { settings.autoSave = $('auto-save').checked; saveSettings() })
+$('auto-save').addEventListener('change', () => { settings.autoSave = $('auto-save').checked; saveSettings(); updateTakeButtons() })
 $('auto-verify').addEventListener('change', () => { settings.autoVerify = $('auto-verify').checked; saveSettings() })
 $('mic-select').addEventListener('change', () => {
   settings.deviceId = $('mic-select').value
@@ -651,7 +755,12 @@ document.addEventListener('keydown', (event) => {
   } else if (event.key === 's' || event.key === 'S') {
     play(current()?.sampleUrl)
   } else if (event.key === 'p' || event.key === 'P') {
-    play(current()?.recordingUrl)
+    if (event.shiftKey) {
+      event.preventDefault()
+      processCurrentClip()
+    } else {
+      play(current()?.recordingUrl, true)
+    }
   } else if (event.key === 'ArrowLeft') {
     go(-1)
   } else if (event.key === 'ArrowRight' || event.key === 'Enter') {
