@@ -20,6 +20,8 @@
 
 **常用命令**：`npm test`、`npm run worklists`、`npm run check`、`npm run verify-asr`、`npm run pack`、`npm run publish-pwa`、`npm run ui`（完整列表见 README）
 
+**所有的改动都要有记录。** 代码、音频生成参数、契约文件、文档的每次改动，都要在 `docs/task-log.md` 留一行（任务编号、改了什么、验证方式），并更新 `docs/handoff.md`。未记录的改动视为未完成。
+
 **工作区文件（gitignore，不要提交）**：`voicebuilder.config.json`、`work/`、`models/`
 
 **改动后怎么验证**
