@@ -27,6 +27,7 @@ ID 用 `T-YYYYMMDD-序号`。每条一行，结果要可核对（commit、文件
 | T-20261019-03 | 选定 af_nicole，语速 0.85，生成首页 Lumi 两句到 work/lumi-nicole/，未放入 App | done | 2026-10-19 | 台词与 `lumiStory.ts` 一致；`work/` 忽略目录 | — | 未知 |
 | T-20261019-05 | 选定 af_aoede，语速 1.0，生成首页 Lumi 两句到 work/lumi-aoede/，未放入 App。发现 work/lumi-kokoro、work/lumi-nicole、work/lumi-clear 三个目录已不存在，原因未知（非本次主动删除，work/ 不入库无法从 git 恢复） | done | 2026-10-19 | 台词与 `lumiStory.ts` 一致；模型文件与 `tts-kokoro.py --speed` 改动确认仍在 | — | 未知 |
 | T-20261019-04 | 活泼女声候选：af_sky / af_jessica / af_kore / af_nova / af_aoede，语速 1.0，同一句生成到 work/lumi-cute/ | done | 2026-10-19 | 模型 voices-v1.0.bin 内共 11 个美式女声；脚本 `US_VOICES` 只列了其中 4 个，其余 7 个（alloy、aoede、jessica、kore、nova、river、sky）未列入但可用，运行时会打印警告；仅生成试听，未放入 App | — | 未知 |
+| T-20261019-06 | 生成契约中其他音频（af_aoede，语速 1.0）到 work/aoede-all/out/，93 句；3 句契约无台词未生成；未替换 App 文件 | done | 2026-10-19 | 按 `audio-production/lines.json` id 命名；`lines.json` 的 `excellent` 重复两条，需去重；`magic-chime`、`hi-friend`、`thank-you-exploring` 缺台词 | — | 未知 |
 
 ## 规则
 
