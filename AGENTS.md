@@ -31,9 +31,12 @@
 **当前状态**：`docs/handoff.md`。开始工作前先读它，再读 `docs/task-log.md`
 
 **Token 记录与会话拆分（强制）**
-- 开工时把会话 ID 记在 `docs/task-log.md` 对应任务行
-- 任务结束后**新开会话**跑 `node D:\LvQian\BaseCompetence\tools\token-usage.cjs <会话ID>` 取数填入 token 消耗列
+- 开工时新增 `docs/task-log.md` 任务行，然后运行 `node D:\LvQian\BaseCompetence\tools\record-usage.cjs --start <任务ID>` 记下会话 ID
+- 任务结束后**新开会话**跑 `node D:\LvQian\BaseCompetence\tools\record-usage.cjs <任务ID>`，把用量写进任务行的 token 消耗列；提交时守卫 G-0020 会检查，列为空会拒绝提交
 - **做完一件事立即关闭本会话/窗口**，防止历史上下文重复计费
+- 缓存读取是 token 主要成本，会话越长每轮越贵：一个会话只做一个任务
+- `docs/handoff.md` 只读「当前状态 / 下一步 / 待确认」，历史段落不读；超过约 5 KB 时把历史移到 `docs/archive/`
+- `docs/task-log.md` 只按任务 ID grep，不整文件读；新任务行只写一行结果
 - **任务结束输出最后一句必须是**：
   > ⚠️ 任务已完成，请关闭本会话/窗口，防止历史上下文重复计费。下一任务请新开会话，阅读 `docs/handoff.md` 接续。
   这是**强制收尾动作**，不等用户提醒，不写不算完。
